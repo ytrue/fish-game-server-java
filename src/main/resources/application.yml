@@ -1,0 +1,57 @@
+# 天天摸鱼（fish-server）服务端 —— 主配置
+# 说明：数据源已迁移为 PostgreSQL（双库）；Redis / 微信 等配置将在迁移业务代码时补回。
+# 环境差异化配置放 application-dev.yml / application-prod.yml。
+
+spring:
+  application:
+    name: fish-server
+
+  # 双数据源：主库（app_data）+ 日志库（app_log），PostgreSQL
+  # 注意：username / password 为敏感信息，正式部署应改用环境变量或 application-local.yml 注入。
+  datasource:
+    data:
+      jdbc-url: "jdbc:postgresql://127.0.0.1:5432/app_data"
+      username: "postgres"
+      password: "postgres"
+      driver-class-name: "org.postgresql.Driver"
+    log:
+      jdbc-url: "jdbc:postgresql://127.0.0.1:5432/app_log"
+      username: "postgres"
+      password: "postgres"
+      driver-class-name: "org.postgresql.Driver"
+
+# 服务器配置（绑定到 ServerConfig，对应 game 前缀）
+game:
+  network:
+    # TCP Socket 监听（客户端游戏协议，Protobuf 编解码）
+    tcpsocket:
+      port: 8011
+      boss-size: 1
+      worker-size: 10
+    # UDP Socket 监听
+    udpsocket:
+      port: 8111
+      boss-size: 1
+      worker-size: 10
+    # HTTP 监听（后台 GM / 客户端 HTTP 接口）
+    http:
+      port: 8021
+      boss-size: 1
+      worker-size: 10
+    # WebSocket 监听
+    websocket:
+      port: 8031
+      boss-size: 1
+      worker-size: 10
+  server:
+    nickname:
+      limit: 1
+
+# 阿里云短信配置（绑定到 AliSmsConfig，对应 ali-sms 前缀）
+# 注意：accessKeyId / accessSecret 为敏感凭证，正式部署应改用环境变量或 application-local.yml 注入。
+ali-sms:
+  access-key-id: "${ALI_SMS_ACCESS_KEY_ID:}"
+  access-secret: "${ALI_SMS_ACCESS_SECRET:}"
+  sign: "天天摸鱼"
+  auth-code: "SMS_158050408"
+  pass-code: "SMS_158051452"
