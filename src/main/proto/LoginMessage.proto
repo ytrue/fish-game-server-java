@@ -1,0 +1,135 @@
+syntax = "proto2";
+
+package com.ytrue.game.business.login.proto;
+
+// 登录模块消息码
+enum LoginMsgCode {
+    C_S_GET_UNUSED_USERNAME_REQUEST = 0x10000201; // 获取未使用的用户名请求
+    S_C_GET_UNUSED_USERNAME_RESPONSE = 0x20000201; // 获取未使用的用户名返回
+
+    C_S_COMMON_REGISTER_REQUEST = 0x10000202; // 标准注册请求
+    S_C_COMMON_REGISTER_RESPONSE = 0x20000202; // 标准注册返回
+
+    C_S_COMMON_INVITE_REGISTER_REQUEST = 0x10000203; // 标准邀请注册请求
+
+    C_S_COMMON_NAME_LOGIN_REQUEST = 0x10000204; // 通过用户名登录请求
+
+    C_S_WX_LOGIN_CODE_REQUEST = 0x10000205; // 微信code换取Token请求
+    S_C_WX_LOGIN_CODE_RESPONSE = 0x20000205; // 微信code换取Token响应
+    C_S_WX_LOGIN_REQUEST = 0x10000206; // 微信登录
+    S_C_WX_LOGIN_REAUTH_RESPONSE = 0x20000206; // 通知前端重新授权的响应
+
+    S_C_LOGIN_SUCCESS_RESPONSE = 0x20000210; // 用户登录成功返回
+    C_S_ONLINE_TOKEN_LOGIN_REQUEST = 0x10000211; // 用户在线码登录请求
+    C_S_COMMON_LOGIN_REQUEST = 0x10000212; // 标准登录请求
+
+    C_S_TOURIST_LOGIN_REQUEST = 0x10000213; // 游客登录请求
+    S_C_TOURIST_LOGIN_RESPONSE = 0x20000213; // 游客登录返回
+
+    C_S_CHANGE_PASSWORD_REQUEST = 0x10000221; // 修改密码请求
+    S_C_CHANGE_PASSWORD_RESPONSE = 0x20000221; // 修改密码返回(成功时)
+
+    S_C_LOGOUT_RESPONSE = 0x20000231; // 退出返回
+}
+
+// C_S_GET_UNUSED_USERNAME_REQUEST = 0x10000201; // 获取未使用的用户名请求
+message GetUnusedUsernameRequest {
+}
+
+// S_C_GET_UNUSED_USERNAME_RESPONSE = 0x20000201; // 获取未使用的用户名返回
+message GetUnusedUsernameResponse {
+    optional string username = 1; // 用户名
+}
+
+// C_S_COMMON_REGISTER_REQUEST = 0x10000202; // 标准注册请求
+message CommonRegisterRequest {
+    optional string username = 1; // 用户名
+    optional string password = 2; // 密码(32位md5小写密文)
+}
+
+// S_C_COMMON_REGISTER_RESPONSE = 0x20000202; // 标准注册返回
+message CommonRegisterResponse {
+    optional string username = 1; // 用户名
+    optional string password = 2; // 密码(32位md5小写密文)
+}
+
+// C_S_COMMON_INVITE_REGISTER_REQUEST = 0x10000203; // 标准邀请注册请求
+message CommonInviteRegisterRequest {
+    optional string username = 1; // 用户名
+    optional string password = 2; // 密码(32位md5小写密文)
+    optional int64 inviteCode = 3; // 邀请码
+}
+
+// S_C_LOGIN_SUCCESS_RESPONSE = 0x20000210; // 用户登录成功返回
+message LoginSuccessResponse {
+    optional string onlineToken = 1; // 在线码
+    optional int64 id = 2; // 用户id
+    optional string name = 3; // 昵称
+    optional int32 headIndex = 4; // 头像序号
+    optional string headUrl = 5; // 头像地址
+    optional int32 sex = 6; // 性别
+}
+
+// C_S_ONLINE_TOKEN_LOGIN_REQUEST = 0x10000211; // 用户在线码登录请求
+message OnlineTokenLoginRequest {
+    optional int64 id = 1; // 用户id
+    optional string onlineToken = 2; // 在线码
+}
+
+// C_S_COMMON_LOGIN_REQUEST = 0x10000212; // 标准登录请求
+message CommonLoginRequest {
+    optional string username = 1; // 用户名
+    optional string password = 2; // 密码(32位md5小写密文)
+}
+
+// C_S_TOURIST_LOGIN_REQUEST = 0x10000213; // 游客登录请求
+message TouristLoginRequest {
+    optional string touristCode = 1; // 游客码(空值为服务器生成)
+}
+
+// S_C_TOURIST_LOGIN_RESPONSE = 0x20000213; // 游客登录返回
+message TouristLoginResponse {
+    optional string touristCode = 1; // 游客码
+}
+
+// C_S_CHANGE_PASSWORD_REQUEST = 0x10000221; // 修改密码请求
+message ChangePasswordRequest {
+    optional string username = 1; // 用户名
+    optional string oldPassword = 2; // 旧密码(32位md5小写密文)
+    optional string newPassword = 3; // 新密码(32位md5小写密文)
+}
+
+// S_C_CHANGE_PASSWORD_RESPONSE = 0x20000221; // 修改密码返回(成功时)
+message ChangePasswordResponse {
+    optional string username = 1; // 用户名
+    optional string password = 2; // 密码(32位md5小写密文)
+}
+
+// S_C_LOGOUT_RESPONSE = 0x20000231; // 退出返回
+message LogoutResponse {
+    optional int32 result = 1; // 退出原因 0:正常退出 1:顶号退出 2:管理员强制退出
+}
+
+// C_S_COMMON_NAME_LOGIN_REQUEST = 0x10000204; // 通过用户名登录请求
+message CommonNameLoginRequest {
+    optional string username = 1; // 登录的用户名
+}
+
+// C_S_WX_LOGIN_CODE_REQUEST = 0x10000205; // 微信code换取Token请求
+message WxLoginCodeRequest {
+    optional string code = 1; // 前端sdk获取的登录码
+}
+
+// S_C_WX_LOGIN_CODE_RESPONSE = 0x20000205; // 微信code换取Token响应
+message WxLoginCodeResponse {
+    optional string refreshToken = 1; // 微信的刷新令牌，用于登录使用
+}
+
+// C_S_WX_LOGIN_REQUEST = 0x10000206; // 微信登录
+message WxLoginRequest {
+    optional string refreshToken = 1; // 微信的刷新令牌
+}
+
+// S_C_WX_LOGIN_REAUTH_RESPONSE = 0x20000206; // 通知前端重新授权的响应
+message WxLoginReAuthResponse {
+}

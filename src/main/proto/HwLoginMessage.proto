@@ -1,0 +1,51 @@
+syntax = "proto2";
+
+package com.ytrue.game.business.proto;
+
+//C_S_HW_LOGIN_REQUEST = 0x10000207;//华为登录请求
+message HwLoginRequest {
+    optional string ts  = 1;
+    optional string playerId  = 2;
+    optional string playerLevel  = 3;
+    optional string playerSSign  = 4;
+    optional string playerName = 5;
+}
+//S_C_HW_LOGIN_REAUTH_RESPONSE = 0x20000207;//华为登录响应
+message HwLoginResponse{
+}
+
+//S_C_HW_LOGIN_SUCCESS_REAUTH_RESPONSE = 0x20000208;//华为登录响应
+message HwLoginSuccessResponse{
+    optional string onlineToken = 1; // 在线码
+    optional int64 id = 2; // 用户id
+    optional string name = 3; // 昵称
+    optional int32 headIndex = 4; // 头像序号
+    optional string headUrl = 5; // 头像地址
+    optional int32 sex = 6; // 性别
+}
+
+//C_S_HW_CHENK_PAY_REQUEST = 0x10000208;//华为生成签名请求
+message HwPayChenkRequest{
+    optional string payReq = 1; // 在线码
+}
+
+//S_C_HW_CHENK_PAY_RESPONSE = 0x20000209;//华为生成签名响应
+message HwPayChenkResponse{
+    optional string sign = 1; // 在线码
+}
+
+//S_C_HW_CHENK_PAY_FAILED_RESPONSE = 0x20000210;//华为生成签名重新拉取响应
+message HwPayCheckAgAinResponse{
+
+}
+//C_S_BAN_AGENT_REQUEST = 0x10000210;//自动绑定渠道的请求
+message BanAgentRequest{
+
+    optional int64 userId = 1;//用户id
+    optional int64 agentId = 2;//渠道id
+}
+
+//S_C_BAN_AGENT_RESPONSE = 0x20000212;//自动绑定渠道响应
+message BanAgentResponse{
+    optional bool isSuccess = 1;//是否成功
+}

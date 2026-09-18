@@ -42,5 +42,4 @@ public class UserInitFinishListener implements ApplicationListener<UserInitEvent
             userMapper.updateById(user.getEntity());
         }
     }
-
 }

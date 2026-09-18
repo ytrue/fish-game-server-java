@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+package com.ytrue.game.framework.network.proto;
+
+// 基本消息
+message BaseMessage {
+	optional int32 code = 1; // 消息码
+	optional bytes body = 2; // 消息内容
+}
+
+// UDP 基本消息
+message UdpMessage {
+	optional int32 token = 1; // 客户端token
+	optional BaseMessage msg = 2; // 消息体
+	optional int32 msgIndex = 3; // 消息序号
+}

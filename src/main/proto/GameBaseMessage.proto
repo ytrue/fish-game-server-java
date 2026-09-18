@@ -1,0 +1,35 @@
+syntax = "proto2";
+
+package com.ytrue.game.framework.base.proto;
+
+enum GameBaseMsgCode {
+    C_S_CHAT_IN_ROOM_REQUEST = 0x10002001; // 房间聊天请求
+    S_C_CHAT_IN_ROOM_RESPONSE = 0x20002001; // 房间聊天返回
+
+    C_S_VOICE_IN_ROOM_REQUEST = 0x10002002; // 房间语音聊天请求
+    S_C_VOICE_IN_ROOM_RESPONSE = 0x20002002; // 房间语音聊天返回
+}
+
+// C_S_CHAT_IN_ROOM_REQUEST = 0x10002001; // 房间聊天请求
+message ChatInRoomRequest {
+    optional string chatContent = 1; // 聊天内容
+    optional int32 contentType = 2; // 内容类型
+}
+
+// S_C_CHAT_IN_ROOM_RESPONSE = 0x20002001; // 房间聊天返回
+message ChatInRoomResponse {
+    optional string chatContent = 1; // 聊天内容
+    optional int64 playerId = 2; // 玩家id
+    optional int32 contentType = 3; // 内容类型
+}
+
+// C_S_VOICE_IN_ROOM_REQUEST = 0x10002002; // 房间语音聊天请求
+message VoiceInRoomRequest {
+    optional bytes body = 1; // 语音内容
+}
+
+// S_C_VOICE_IN_ROOM_RESPONSE = 0x20002002; // 房间语音聊天返回
+message VoiceInRoomResponse {
+    optional int64 playerId = 1; // 玩家id
+    optional bytes body = 2; // 语音内容
+}

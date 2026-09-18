@@ -1,0 +1,57 @@
+syntax = "proto2";
+
+package com.ytrue.game.framework.network.proto;
+
+// 网络框架消息码
+enum NetworkMsgCode {
+    C_S_PING_REQUEST = 0x10000000; // 网络诊断请求
+    S_C_PING_RESPONSE = 0x20000000; // 网络诊断返回
+
+    C_S_HEART_BEAT_REQUEST = 0x10000001; // 心跳请求
+    S_C_HEART_BEAT_RESPONSE = 0x20000001; // 心跳返回
+
+    S_C_HINT_MESSAGE_RESPONSE = 0x20000002; // 提示消息返回
+
+    C_S_GET_CONNECT_TOKEN_REQUEST = 0x10000101; // 获取连接token请求
+    S_C_GET_CONNECT_TOKEN_RESPONSE = 0x20000101; // 获取连接token返回
+
+    S_C_INVALID_TOKEN_RESPONSE = 0x20000102; // 无效token返回
+}
+
+// C_S_PING_REQUEST = 0x10000000; // 网络诊断请求
+message PingRequest {
+    optional int64 pingTime = 1; // 请求时间
+}
+
+// S_C_PING_RESPONSE = 0x20000000; // 网络诊断返回
+message PingResponse {
+    optional int64 pingTime = 1; // 请求时间
+}
+
+// C_S_HEART_BEAT_REQUEST = 0x10000001; // 心跳请求
+message HeartBeatRequest {
+}
+
+// S_C_HEART_BEAT_RESPONSE = 0x20000001; // 心跳返回
+message HeartBeatResponse {
+}
+
+// S_C_HINT_MESSAGE_RESPONSE = 0x20000002; // 提示消息返回
+message HintMessageResponse {
+    optional string content = 1; // 提示消息内容
+    optional int32 level = 2; // 消息级别 0:提示 1:警告 2:错误
+}
+
+// C_S_GET_CONNECT_TOKEN_REQUEST = 0x10000101; // 获取连接token请求
+message GetConnectTokenRequest {
+}
+
+// S_C_GET_CONNECT_TOKEN_RESPONSE = 0x20000101; // 获取连接token返回
+message GetConnectTokenResponse {
+    optional int32 token = 1; // 客户端token
+}
+
+// S_C_INVALID_TOKEN_RESPONSE = 0x20000102; // 无效token返回
+message InvalidTokenResponse {
+    optional int32 token = 1; // 无效的token
+}

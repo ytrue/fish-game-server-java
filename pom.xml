@@ -17,6 +17,7 @@
 
         <!-- 第三方库版本 -->
         <protobuf.version>3.25.5</protobuf.version>
+        <protobuf-maven-plugin.version>5.1.9</protobuf-maven-plugin.version>
         <netty.version>4.1.115.Final</netty.version>
         <mybatis-plus.version>3.5.16</mybatis-plus.version>
         <lombok.version>1.18.40</lombok.version>
@@ -137,6 +138,29 @@
 
     <build>
         <plugins>
+            <!-- Protobuf：构建时从 src/main/proto 生成 Java 代码到 target/generated-sources -->
+            <!-- 生成代码不入库；protoc 版本与 protobuf-java 运行时保持一致 -->
+            <plugin>
+                <groupId>io.github.ascopes</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <version>${protobuf-maven-plugin.version}</version>
+                <configuration>
+                    <protoc kind="binary-maven">
+                        <version>${protobuf.version}</version>
+                    </protoc>
+                    <sourceDirectories>
+                        <sourceDirectory>${project.basedir}/src/main/proto</sourceDirectory>
+                    </sourceDirectories>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- Java 25 编译（无 parent，需显式指定 release 与插件版本） -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -144,6 +168,9 @@
                 <version>3.13.0</version>
                 <configuration>
                     <release>25</release>
+                    <!-- JDK 23 起 javac 默认不再隐式扫描 classpath 上的注解处理器，
+                         必须显式开启，否则 Lombok(@Slf4j/@Getter 等)不生效 -->
+                    <proc>full</proc>
                 </configuration>
             </plugin>
 

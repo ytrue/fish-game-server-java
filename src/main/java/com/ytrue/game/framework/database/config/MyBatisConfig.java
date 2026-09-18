@@ -2,6 +2,7 @@ package com.ytrue.game.framework.database.config;
 
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.config.GlobalConfig;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
@@ -91,6 +92,11 @@ public class MyBatisConfig {
     private static SqlSessionFactory build(DataSource dataSource) throws Exception {
         MybatisSqlSessionFactoryBean factoryBean = new MybatisSqlSessionFactoryBean();
         factoryBean.setDataSource(dataSource);
+
+        // 关闭 MyBatis-Plus 启动 banner
+        GlobalConfig globalConfig = new GlobalConfig();
+        globalConfig.setBanner(false);
+        factoryBean.setGlobalConfig(globalConfig);
 
         MybatisConfiguration configuration = new MybatisConfiguration();
         // 开启下划线 → 驼峰字段映射（如 user_state → userState）

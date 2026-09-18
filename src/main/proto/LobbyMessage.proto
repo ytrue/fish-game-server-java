@@ -1,0 +1,55 @@
+syntax = "proto2";
+
+package com.ytrue.game.business.lobby.proto;
+
+// 大厅模块消息码
+enum LobbyMsgCode {
+    C_S_GET_USER_INFO_REQUEST = 0x10001001; // 获取用户详情请求
+    S_C_GET_USER_INFO_RESPONSE = 0x20001001; // 获取用户详情返回
+
+    C_S_CHANGE_USER_INFO_REQUEST = 0x10001002; // 修改用户信息请求
+
+    S_C_WANDER_SUBTITLE_RESPONSE = 0x20001101; // 系统游走字幕返回
+
+    C_S_CHECK_VERSION_REQUEST = 0x10001201; // 检查版本信息请求
+    S_C_CHECK_VERSION_RESPONSE = 0x20001201; // 检查版本信息返回
+}
+
+// C_S_GET_USER_INFO_REQUEST = 0x10001001; // 获取用户详情请求
+message GetUserInfoRequest {
+}
+
+// S_C_GET_USER_INFO_RESPONSE = 0x20001001; // 获取用户详情返回
+message GetUserInfoResponse {
+    optional int64 id = 1; // 用户id
+    optional string nickname = 2; // 昵称
+    optional int32 headIndex = 3; // 头像序号
+    optional string headUrl = 4; // 头像地址
+    optional int64 inviteCode = 5; // 绑定的邀请码
+    optional int64 myInviteCode = 6; // 我的邀请码
+    optional string username = 7; // 用户账号
+    optional string phoneNum = 8; // 手机号
+}
+
+// C_S_CHANGE_USER_INFO_REQUEST = 0x10001002; // 修改用户信息请求
+message ChangeUserInfoRequest {
+    optional string nickName = 1; // 昵称
+    optional int32 headIndex = 2; // 头像序号
+    optional string headUrl = 3; // 头像地址
+}
+
+// S_C_WANDER_SUBTITLE_RESPONSE = 0x20001101; // 系统游走字幕返回
+message WanderSubtitleResponse {
+    optional int32 level = 1; // 游走字幕级别(值越低级别越高)
+    optional string content = 2; // 游走字幕内容
+}
+
+// C_S_CHECK_VERSION_REQUEST = 0x10001201; // 检查版本信息请求
+message CheckVersionRequest {
+    optional string version = 1; // 版本信息
+}
+
+// S_C_CHECK_VERSION_RESPONSE = 0x20001201; // 检查版本信息返回
+message CheckVersionResponse {
+    optional int32 result = 1; // 0:通过 1:不通过
+}
