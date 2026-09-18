@@ -15,9 +15,12 @@ import java.time.temporal.WeekFields;
 public final class DateUtils {
 
     /**
-     * 默认时间：2000-01-01 00:00:00（UTC）对应的毫秒时间戳。
+     * 默认时间：2000-01-01 00:00:00（北京时间 UTC+8）对应的毫秒时间戳。
      *
      * <p>常作为「未设置 / 从未发生」的时间哨兵值使用。</p>
+     *
+     * <p>注意时区：该值是按 UTC+8 取的，换算成 UTC 是 1999-12-31 16:00:00
+     * （{@code 946656000000L = 946684800000L - 8 小时}，其中 946684800000L 才是 UTC 的 2000-01-01 零点）。</p>
      */
     public static final long DEFAULT_TIME = 946656000000L;
 

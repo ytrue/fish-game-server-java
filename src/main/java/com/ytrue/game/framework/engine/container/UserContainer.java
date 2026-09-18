@@ -132,6 +132,14 @@ public class UserContainer {
 
         // 未命中则回源数据库，加锁避免并发重复建用户
         synchronized (USER_ID_MAP) {
+            // 双重检查：等锁期间可能已有其它线程建好了同一个用户。
+            // 不复查的话两个线程会各自查库、各自 new 出实例，后写入的覆盖前者，
+            // 导致先返回的那个 ServerUser 成为孤儿——业务代码改它的字段对后续查询毫无影响。
+            user = getActiveUserById(userId);
+            if (user != null) {
+                return user;
+            }
+
             user = new ServerUser();
             user.setEntity(userMapper.selectById(userId));
             initUser(user);
@@ -199,11 +207,16 @@ public class UserContainer {
      */
     @Scheduled(initialDelay = 30000, fixedRate = 30000)
     public void checker() {
-        // 找出 id 与实体 id 不匹配的脏用户
+        // 清理「索引键与用户当前 id 不符」的脏条目。
+        // 典型来源：连接刚建立时用户还没有实体（getId() 为 0），putServerUser 会以 0 为键建一条索引；
+        // 登录拿到实体后 id 变成真实值，再 put 一次会新建条目，原来那个 0 键条目就此残留。
+        //
+        // 必须按 entry 的 key 删除：removeServerUser 是按用户「当前」id/connect 删的，
+        // 对不上这条残留的键，删了等于没删（同一批脏数据会被反复扫出来）。
         USER_ID_MAP.entrySet().stream()
                 .filter(entry -> !entry.getKey().equals(entry.getValue().getId()))
-                .map(Entry::getValue)
+                .map(Entry::getKey)
                 .toList()
-                .forEach(UserContainer::removeServerUser);
+                .forEach(USER_ID_MAP::remove);
     }
 }

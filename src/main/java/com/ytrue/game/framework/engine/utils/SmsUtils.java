@@ -23,24 +23,32 @@ import java.util.Map;
  * <p>封装阿里云短信服务（dysmsapi）的调用，通过 {@code CommonRequest} 发送短信验证码、
  * 找回密码等通知短信，并以 {@link GsonUtils} 解析接口响应。</p>
  *
+ * <p>对外是静态方法（业务代码以 {@code SmsUtils.sendSms(...)} 调用），内部所需的
+ * {@link AliSmsConfig} 由 Spring 在初始化本类时注入到静态字段。</p>
+ *
  * @since 1.0.0
  */
 @Slf4j
 @Component
 public final class SmsUtils implements BeanFactoryAware {
 
+    /**
+     * 短信配置（由 Spring 注入）。
+     */
     private static AliSmsConfig aliSmsConfig;
+
+    /**
+     * 阿里云短信客户端（懒加载 + 复用）。
+     *
+     * <p>客户端内部持有连接池，每次调用都新建会白白浪费连接建立开销。
+     * 用 {@code volatile} 配合双重检查保证只创建一次且安全发布。</p>
+     */
+    private static volatile IAcsClient acsClient;
 
     /**
      * 阿里云短信接口响应中表示调用成功的返回码。
      */
     private static final String SUCCESS_CODE = "OK";
-
-    /**
-     * 私有构造器，禁止实例化（纯工具类）。
-     */
-    private SmsUtils() {
-    }
 
     /**
      * 发送阿里云短信。
@@ -51,10 +59,6 @@ public final class SmsUtils implements BeanFactoryAware {
      * @return 发送成功返回 {@code true}，否则返回 {@code false}
      */
     public static boolean sendSms(String phone, String templateCode, String templateParam) {
-        DefaultProfile profile = DefaultProfile.getProfile("default",
-                aliSmsConfig.getAccessKeyId(), aliSmsConfig.getAccessSecret());
-        IAcsClient client = new DefaultAcsClient(profile);
-
         CommonRequest request = new CommonRequest();
         request.setMethod(MethodType.POST);
         request.setDomain("dysmsapi.aliyuncs.com");
@@ -66,7 +70,7 @@ public final class SmsUtils implements BeanFactoryAware {
         request.putQueryParameter("TemplateParam", templateParam);
 
         try {
-            CommonResponse response = client.getCommonResponse(request);
+            CommonResponse response = acsClient().getCommonResponse(request);
             Map<String, Object> resultMap = GsonUtils.fromJson(response.getData(), new TypeToken<Map<String, Object>>() {
             }.getType());
             if (resultMap != null && SUCCESS_CODE.equals(resultMap.get("Code"))) {
@@ -79,8 +83,31 @@ public final class SmsUtils implements BeanFactoryAware {
         return false;
     }
 
+    /**
+     * 获取短信客户端（首次调用时创建）。
+     *
+     * <p>懒加载而非在 {@code setBeanFactory} 里创建：AccessKey 来自环境变量，
+     * 未配置时 {@code DefaultProfile} 可能直接抛异常，放在启动阶段会拖垮整个服务；
+     * 放在首次发短信时失败，影响面小得多。</p>
+     *
+     * @return 阿里云短信客户端
+     */
+    private static IAcsClient acsClient() {
+        if (acsClient == null) {
+            synchronized (SmsUtils.class) {
+                if (acsClient == null) {
+                    DefaultProfile profile = DefaultProfile.getProfile("default",
+                            aliSmsConfig.getAccessKeyId(), aliSmsConfig.getAccessSecret());
+                    acsClient = new DefaultAcsClient(profile);
+                }
+            }
+        }
+        return acsClient;
+    }
+
     @Override
     public void setBeanFactory(@NonNull BeanFactory beanFactory) throws BeansException {
         aliSmsConfig = beanFactory.getBean(AliSmsConfig.class);
     }
+
 }

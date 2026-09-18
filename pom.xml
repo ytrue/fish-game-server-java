@@ -193,7 +193,10 @@
                 </configuration>
             </plugin>
 
-            <!-- 标准 Spring Boot 打包（可打成可执行 jar） -->
+            <!-- 标准 Spring Boot 打包（打成可执行 jar） -->
+            <!-- 必须显式绑定 repackage：该 goal 不属于 Maven 标准生命周期，
+                 平时能自动生效是因为 spring-boot-starter-parent 帮忙预配置了 execution；
+                 本工程用 BOM 不用 parent，缺了这段 package 出来的就是普通 jar（无主清单属性）。 -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -206,6 +209,13 @@
                         </exclude>
                     </excludes>
                 </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
