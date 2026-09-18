@@ -34,6 +34,26 @@ public class SpringUtils implements ApplicationContextAware {
 
 
     /**
+     * 获取 Spring 应用上下文。
+     *
+     * <p>用于访问那些「不是 bean、但上下文本身就能提供」的能力，最典型的是事件发布：
+     * {@link ApplicationContext} 自身即实现了
+     * {@link org.springframework.context.ApplicationEventPublisher}。
+     * 这类能力 Spring 只注册为「可解析依赖」（供 {@code @Autowired} 解析），
+     * 用 {@link #getBean(Class)} 是拿不到的。</p>
+     *
+     * @return 应用上下文
+     * @throws IllegalStateException 上下文尚未就绪时抛出
+     */
+    public static ApplicationContext getApplicationContext() {
+        if (applicationContext == null) {
+            // 静态上下文的经典陷阱：在容器就绪前被调用。给出明确提示，避免一个裸 NPE 难以定位
+            throw new IllegalStateException("Spring 应用上下文尚未初始化，无法在容器启动完成前使用 SpringUtils");
+        }
+        return applicationContext;
+    }
+
+    /**
      * 按类型获取 bean。
      *
      * @param requiredType bean 类型
@@ -41,7 +61,7 @@ public class SpringUtils implements ApplicationContextAware {
      * @return bean 实例
      */
     public static <T> T getBean(Class<T> requiredType) {
-        return applicationContext.getBean(requiredType);
+        return getApplicationContext().getBean(requiredType);
     }
 
     /**
@@ -51,7 +71,7 @@ public class SpringUtils implements ApplicationContextAware {
      * @return bean 实例（需调用方自行强转）
      */
     public static Object getBean(String name) {
-        return applicationContext.getBean(name);
+        return getApplicationContext().getBean(name);
     }
 
     /**
@@ -63,7 +83,7 @@ public class SpringUtils implements ApplicationContextAware {
      * @return bean 实例
      */
     public static <T> T getBean(String name, Class<T> requiredType) {
-        return applicationContext.getBean(name, requiredType);
+        return getApplicationContext().getBean(name, requiredType);
     }
 
 }

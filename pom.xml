@@ -18,7 +18,6 @@
         <!-- 第三方库版本 -->
         <protobuf.version>3.25.5</protobuf.version>
         <protobuf-maven-plugin.version>5.1.9</protobuf-maven-plugin.version>
-        <netty.version>4.1.115.Final</netty.version>
         <mybatis-plus.version>3.5.16</mybatis-plus.version>
         <lombok.version>1.18.40</lombok.version>
         <okhttp.version>4.12.0</okhttp.version>
@@ -74,10 +73,24 @@
         </dependency>
 
         <!-- ==================== 网络层 Netty ==================== -->
+        <!-- 版本由 spring-boot-dependencies 统一管理（4.2.15.Final）。
+             不用 netty-all：它只是个空壳聚合包（0 个 class），靠传递依赖拉 34 个子模块，
+             且显式版本号会与 BOM 管理的子模块版本分裂（4.1 与 4.2 不能共存于同一 classpath）。
+             这里只声明实际用到的模块，其余（transport/buffer/common/resolver）由它们传递引入。 -->
+        <!-- NIO 传输与处理器 -->
         <dependency>
             <groupId>io.netty</groupId>
-            <artifactId>netty-all</artifactId>
-            <version>${netty.version}</version>
+            <artifactId>netty-handler</artifactId>
+        </dependency>
+        <!-- HTTP 编解码（后台 GM 接口） -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec-http</artifactId>
+        </dependency>
+        <!-- Protobuf 编解码（ProtobufDecoder / ProtobufEncoder，4.2 起从 netty-codec 拆出） -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec-protobuf</artifactId>
         </dependency>
 
         <!-- HTTP 客户端（微信/短信等外部接口调用） -->
@@ -151,6 +164,12 @@
                     <sourceDirectories>
                         <sourceDirectory>${project.basedir}/src/main/proto</sourceDirectory>
                     </sourceDirectories>
+                    <!-- 每次构建先清空输出目录再全量生成。
+                         增量编译与该清理互斥（插件内部规则：开了增量编译时 cleanOutputDirectories 一律视为
+                         false），而不清理会导致「改 proto 包名 / 删 proto 文件」后残留孤儿 .java
+                         （同一个消息类出现在新旧两个包下）。全量重生成 20 个 proto 仅需一两秒，故关闭增量。 -->
+                    <incrementalCompilation>false</incrementalCompilation>
+                    <cleanOutputDirectories>true</cleanOutputDirectories>
                 </configuration>
                 <executions>
                     <execution>

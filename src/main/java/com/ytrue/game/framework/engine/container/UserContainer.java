@@ -3,9 +3,9 @@ package com.ytrue.game.framework.engine.container;
 import com.ytrue.game.framework.database.data.mapper.UserMapper;
 import com.ytrue.game.framework.engine.data.ServerUser;
 import com.ytrue.game.framework.engine.event.UserInitEvent;
+import com.ytrue.game.framework.engine.utils.SpringEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -33,11 +33,6 @@ public class UserContainer {
     private static UserMapper userMapper;
 
     /**
-     * 事件发布器。
-     */
-    private static ApplicationEventPublisher eventPublisher;
-
-    /**
      * 活跃用户 connectId 表。
      */
     private static final Map<Object, ServerUser> USER_CONNECT_MAP = new ConcurrentHashMap<>();
@@ -63,15 +58,13 @@ public class UserContainer {
     private static final Map<String, ServerUser> USER_NAME_MAP = new ConcurrentHashMap<>();
 
     /**
-     * 构造器注入用户数据库操作接口与事件发布器。
+     * 构造器注入用户数据库操作接口。
      *
-     * @param userMapper     用户数据库操作接口
-     * @param eventPublisher 事件发布器
+     * @param userMapper 用户数据库操作接口
      */
     @Autowired
-    public UserContainer(UserMapper userMapper, ApplicationEventPublisher eventPublisher) {
+    public UserContainer(UserMapper userMapper) {
         UserContainer.userMapper = userMapper;
-        UserContainer.eventPublisher = eventPublisher;
     }
 
     /**
@@ -120,7 +113,7 @@ public class UserContainer {
     public static void initUser(ServerUser user) {
         // 用户实体存在时才发布初始化事件，各业务模块通过 @EventListener 完成自身初始化
         if (user.getEntity() != null) {
-            eventPublisher.publishEvent(new UserInitEvent(user));
+            SpringEventPublisher.publish(new UserInitEvent(user));
         }
     }
 
