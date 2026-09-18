@@ -1,5 +1,6 @@
 package com.ytrue.game.framework.database.data.entity;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import com.ytrue.game.framework.database.DbEntity;
 import lombok.Getter;
 import lombok.Setter;
@@ -7,12 +8,13 @@ import lombok.Setter;
 import java.io.Serial;
 
 /**
- * 用户数据实体（表 {@code tbl_app_user}）。
+ * 用户数据实体（表 {@code app_user}）。
  *
  * @since 1.0.0
  */
 @Getter
 @Setter
+@TableName("app_user")
 public class UserEntity extends DbEntity {
 
     @Serial
@@ -21,66 +23,66 @@ public class UserEntity extends DbEntity {
     /**
      * 用户名
      */
-    private String username = "";
+    private String username;
 
     /**
      * 手机号
      */
-    private String phonenum = "";
+    private String phonenum;
 
     /**
      * 第三方 openid
      */
-    private String openid = "";
+    private String openid;
 
     /**
      * 第三方 unionid
      */
-    private String unionid = "";
+    private String unionid;
 
     /**
      * 密码（32 位 md5）
      */
-    private String password = "";
+    private String password;
 
     /**
      * 昵称
      */
-    private String nickname = "";
+    private String nickname;
 
     /**
      * 头像序号（0：使用头像地址）
      */
-    private int headIndex = 1;
+    private Integer headIndex = 1;
 
     /**
      * 头像地址
      */
-    private String headUrl = "";
+    private String headUrl;
 
     /**
      * 性别（0：男 1：女）
      */
-    private int sex;
+    private Integer sex;
 
     /**
      * 我的邀请码
      */
-    private long myInviteCode;
+    private Long myInviteCode;
 
     /**
      * 我绑定的邀请码
      */
-    private long inviteCode;
+    private Long inviteCode;
 
     /**
      * 用户状态
      */
-    private int userState;
+    private Integer userState;
 
     /**
      * 在线状态
      */
-    private int onlineState;
+    private Integer onlineState;
 
 }

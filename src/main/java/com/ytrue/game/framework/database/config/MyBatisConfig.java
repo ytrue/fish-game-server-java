@@ -1,7 +1,11 @@
 package com.ytrue.game.framework.database.config;
 
+import com.baomidou.mybatisplus.annotation.DbType;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
+import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import org.apache.ibatis.session.SqlSessionFactory;
-import org.mybatis.spring.SqlSessionFactoryBean;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.jdbc.DataSourceBuilder;
@@ -85,13 +89,28 @@ public class MyBatisConfig {
      * @throws Exception 构建失败时抛出
      */
     private static SqlSessionFactory build(DataSource dataSource) throws Exception {
-        SqlSessionFactoryBean factoryBean = new SqlSessionFactoryBean();
+        MybatisSqlSessionFactoryBean factoryBean = new MybatisSqlSessionFactoryBean();
         factoryBean.setDataSource(dataSource);
+
+        MybatisConfiguration configuration = new MybatisConfiguration();
         // 开启下划线 → 驼峰字段映射（如 user_state → userState）
-        org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration();
         configuration.setMapUnderscoreToCamelCase(true);
+        // 注册分页插件（PostgreSQL 方言）
+        configuration.addInterceptor(paginationInterceptor());
+
         factoryBean.setConfiguration(configuration);
         return factoryBean.getObject();
+    }
+
+    /**
+     * 构建分页插件（PostgreSQL 方言）。
+     *
+     * @return 配置了分页内部拦截器的 MyBatis-Plus 拦截器
+     */
+    private static MybatisPlusInterceptor paginationInterceptor() {
+        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
+        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.POSTGRE_SQL));
+        return interceptor;
     }
 
 }

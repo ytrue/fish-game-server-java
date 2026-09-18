@@ -130,6 +130,8 @@ COMMENT ON COLUMN "tbl_app_user"."my_invite_code" IS '我的邀请码';
 COMMENT ON COLUMN "tbl_app_user"."invite_code" IS '我绑定的邀请码';
 COMMENT ON COLUMN "tbl_app_user"."user_state" IS '用户状态';
 COMMENT ON COLUMN "tbl_app_user"."online_state" IS '在线状态';
+
+
 DROP TABLE IF EXISTS "tbl_app_user_authentication";
 CREATE TABLE "tbl_app_user_authentication"  (
   "id" bigserial,

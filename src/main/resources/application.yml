@@ -10,14 +10,14 @@ spring:
   # 注意：username / password 为敏感信息，正式部署应改用环境变量或 application-local.yml 注入。
   datasource:
     data:
-      jdbc-url: "jdbc:postgresql://127.0.0.1:5432/app_data"
+      jdbc-url: "jdbc:postgresql://192.168.1.221:5432/app_data"
       username: "postgres"
-      password: "postgres"
+      password: "root"
       driver-class-name: "org.postgresql.Driver"
     log:
-      jdbc-url: "jdbc:postgresql://127.0.0.1:5432/app_log"
+      jdbc-url: "jdbc:postgresql://192.168.1.221:5432/app_log"
       username: "postgres"
-      password: "postgres"
+      password: "root"
       driver-class-name: "org.postgresql.Driver"
 
 # 服务器配置（绑定到 ServerConfig，对应 game 前缀）

@@ -7,7 +7,7 @@ import lombok.Setter;
 import java.io.Serial;
 
 /**
- * 用户实名认证数据实体（表 {@code tbl_app_user_authentication}）。
+ * 用户实名认证数据实体（表 {@code app_user_authentication}）。
  *
  * @since 1.0.0
  */

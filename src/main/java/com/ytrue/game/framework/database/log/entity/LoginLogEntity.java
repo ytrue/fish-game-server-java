@@ -8,7 +8,7 @@ import java.io.Serial;
 import java.util.Date;
 
 /**
- * 登录日志实体（表 {@code tbl_app_login_log}）。
+ * 登录日志实体（表 {@code app_login_log}）。
  *
  * @since 1.0.0
  */
@@ -22,7 +22,7 @@ public class LoginLogEntity extends DbEntity {
     /**
      * 用户 id
      */
-    private long userId;
+    private Long userId;
 
     /**
      * 退出游戏时间

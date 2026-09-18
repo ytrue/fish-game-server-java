@@ -8,7 +8,7 @@ import java.io.Serial;
 import java.util.Date;
 
 /**
- * 游走字幕实体（表 {@code tbl_app_wander_subtitle}）。
+ * 游走字幕实体（表 {@code app_wander_subtitle}）。
  *
  * @since 1.0.0
  */
@@ -27,7 +27,7 @@ public class WanderSubtitleEntity extends DbEntity {
     /**
      * 间隔时间（分钟）
      */
-    private int intervalTime;
+    private Integer intervalTime;
 
     /**
      * 开始时间
@@ -42,6 +42,6 @@ public class WanderSubtitleEntity extends DbEntity {
     /**
      * 下次推送时间
      */
-    private long nextSendTime;
+    private Integer nextSendTime;
 
 }

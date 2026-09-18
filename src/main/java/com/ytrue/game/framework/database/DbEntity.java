@@ -1,5 +1,9 @@
 package com.ytrue.game.framework.database;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -23,13 +27,15 @@ public abstract class DbEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 数据主键 id。
+     * 数据主键 id（数据库自增）。
      */
-    protected long id = 100001;
+    @TableId(type = IdType.AUTO)
+    protected Long id = 100001L;
 
     /**
-     * 创建时间。
+     * 创建时间（仅插入时写入，更新时忽略）。
      */
+    @TableField(updateStrategy = FieldStrategy.NEVER)
     protected Date createTime = new Date();
 
 }

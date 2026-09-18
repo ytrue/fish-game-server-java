@@ -18,7 +18,7 @@
         <!-- 第三方库版本 -->
         <protobuf.version>3.25.5</protobuf.version>
         <netty.version>4.1.115.Final</netty.version>
-        <mybatis.version>3.0.4</mybatis.version>
+        <mybatis-plus.version>3.5.16</mybatis-plus.version>
         <lombok.version>1.18.40</lombok.version>
         <okhttp.version>4.12.0</okhttp.version>
         <commons-csv.version>1.10.0</commons-csv.version>
@@ -95,9 +95,15 @@
 
         <!-- ==================== 数据库 ==================== -->
         <dependency>
-            <groupId>org.mybatis.spring.boot</groupId>
-            <artifactId>mybatis-spring-boot-starter</artifactId>
-            <version>${mybatis.version}</version>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+        <!-- 分页插件（PaginationInnerInterceptor 自 3.5.9 起拆分到该模块，starter 默认不携带） -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser</artifactId>
+            <version>${mybatis-plus.version}</version>
         </dependency>
         <!-- PostgreSQL 驱动（版本由 BOM 托管） -->
         <dependency>
@@ -114,11 +120,11 @@
         <!--        </dependency>-->
 
         <!-- CSV 解析（@AppData 静态配置加载） -->
-        <!--        <dependency>-->
-        <!--            <groupId>org.apache.commons</groupId>-->
-        <!--            <artifactId>commons-csv</artifactId>-->
-        <!--            <version>${commons-csv.version}</version>-->
-        <!--        </dependency>-->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>${commons-csv.version}</version>
+        </dependency>
 
         <!-- Lombok -->
         <dependency>
