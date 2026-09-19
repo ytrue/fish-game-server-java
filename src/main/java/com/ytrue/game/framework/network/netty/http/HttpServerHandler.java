@@ -9,14 +9,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpUtil;
-import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -76,6 +69,24 @@ import java.util.Map;
  * <p>本类被 {@link Sharable} 标注，是全局唯一实例，自身不持有任何连接状态，
  * 故可被所有连接共享。</p>
  *
+ * <p><b>日志规范</b>——统一用 {@code GM - } 前缀（{@code netty http - } 之类会把传输层细节
+ * 混进来），级别按「这件事需不需要人管」划分：</p>
+ * <table border="1">
+ *     <caption>各场景的日志级别</caption>
+ *     <tr><th>场景</th><th>级别</th><th>理由</th></tr>
+ *     <tr><td>路径未注册（404）</td><td>{@code warn}</td>
+ *         <td>内网接口出现未知路径，要么前端调错、要么有人在扫接口，值得关注</td></tr>
+ *     <tr><td>业务处理异常</td><td>{@code error}</td>
+ *         <td>真正的错误，且会带堆栈</td></tr>
+ *     <tr><td>连接级异常</td><td>{@code warn}</td>
+ *         <td>客户端断开、请求体超限等，是「出了问题」但不一定是服务端的错</td></tr>
+ *     <tr><td>请求体内容 / 解析失败</td><td>{@code debug}</td>
+ *         <td>请求体含玩家数据，全量打出来有体积与敏感信息两重问题；
+ *             空 body 也是常见且合法的情况，不该在 info 刷屏</td></tr>
+ * </table>
+ *
+ * <p>404 与处理异常的日志都带来源 IP，排查时能直接看出是前端在调还是外界在探。</p>
+ *
  * @since 1.0.0
  */
 @Slf4j
@@ -114,6 +125,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         // ① 解码失败的请求直接拒掉（协议格式错误、超长等）
         //    decoderResult() 由上游的 HttpRequestDecoder 写入，标记这次解码是否成功
         if (!msg.decoderResult().isSuccess()) {
+            // 返回 400
             sendError(ctx, HttpResponseStatus.BAD_REQUEST);
             return;
         }
@@ -129,6 +141,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         }
         if (ip == null) {
             // 拿不到来源地址，拒绝服务。注：当前未把 ip 传给业务方法，此处仅作准入判断
+            // 返回 403
             sendError(ctx, HttpResponseStatus.FORBIDDEN);
             return;
         }
@@ -160,12 +173,13 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         if (HttpMethod.GET.equals(msg.method())) {
             // GET 的参数在查询串里
             String queryStr = queryIndex < 0 ? "" : uri.substring(queryIndex + 1);
-            result = handleGet(ctx, path, queryStr);
+            result = handleGet(ctx, path, queryStr, ip);
         } else if (HttpMethod.POST.equals(msg.method())) {
             // POST 的参数在请求体里
-            result = handlePost(ctx, msg, path);
+            result = handlePost(ctx, msg, path, ip);
         } else {
             // PUT / DELETE 等未开放（CORS 头里虽然允许，但服务端不处理）
+            // 405
             sendError(ctx, HttpResponseStatus.METHOD_NOT_ALLOWED);
             return;
         }
@@ -200,12 +214,12 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
      * @param ctx      通道上下文
      * @param routeKey 已归一化的路由键（不含查询串与结尾斜杠）
      * @param queryStr 查询串（不含问号），无参数时为空串
+     * @param ip       客户端 IP（仅用于日志，便于定位是谁在调用）
      * @return 响应 JSON 字符串；已自行发送错误响应时返回 {@code null}
      */
-    private String handleGet(ChannelHandlerContext ctx, String routeKey, String queryStr) {
+    private String handleGet(ChannelHandlerContext ctx, String routeKey, String queryStr, String ip) {
         // 按后台方法的签名约定，参数要打包成 Map 传进去（而不是按位置传参）
         Map<String, Object> paramMap = new HashMap<>();
-
         // 没有查询串（如 GET /ping）时 paramMap 保持为空，由业务方法自己校验必填项
         if (!queryStr.isEmpty()) {
             // 查询串形如 "pingTime=123&uid=100001"，先按 & 拆成一个个键值对
@@ -231,7 +245,9 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             // 路径没注册过：回 404，并在这里就把响应发出去。
             // 返回 null 是给调用方的信号——「我已经回过响应了，你不用再写」
             sendError(ctx, HttpResponseStatus.NOT_FOUND);
-            log.info("GM - 消息未找到[{}]", routeKey);
+            // 用 warn 而非 info：GM 是内网接口，出现未注册路径说明前端调错了，
+            // 或是有人在扫接口——两种情况都值得关注。带上 IP 便于区分
+            log.warn("GM - 消息未找到:[{}] from {}", routeKey, ip);
             return null;
         }
 
@@ -240,8 +256,9 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             return invoke(wrapper, paramMap);
         } catch (Exception e) {
             // 业务方法内部抛异常：不让连接挂掉，而是把错误信息作为响应体返回，
-            // 后台页面能直接看到出错原因
-            log.error("GM - 消息处理出错:[{}]", e.getMessage(), e);
+            // 后台页面能直接看到出错原因。
+            // 日志里带上路由与来源 IP，否则只看到一句异常，不知道是哪个接口、谁调的
+            log.error("GM - 消息处理出错:[{}] from {} -> {}", routeKey, ip, e.getMessage(), e);
             return errorResult(e);
         }
     }
@@ -273,14 +290,16 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
      * @param ctx      通道上下文
      * @param msg      完整请求
      * @param routeKey 已归一化的路由键（不含查询串与结尾斜杠）
+     * @param ip       客户端 IP（仅用于日志，便于定位是谁在调用）
      * @return 响应 JSON 字符串；已自行发送错误响应时返回 {@code null}
      */
-    private String handlePost(ChannelHandlerContext ctx, FullHttpRequest msg, String routeKey) {
+    private String handlePost(ChannelHandlerContext ctx, FullHttpRequest msg, String routeKey, String ip) {
         // 先查路由表，路径没注册就直接 404 返回，不必浪费力气解析请求体
         GmHandlerWrapper wrapper = register.getGmHandlerWrapperMap().get(routeKey);
         if (wrapper == null) {
             sendError(ctx, HttpResponseStatus.NOT_FOUND);
-            log.info("GM - 消息未找到[{}]", routeKey);
+            // 与 GET 分支保持同样的级别与措辞，避免同一件事在两条路径上表现不一致
+            log.warn("GM - 消息未找到:[{}] from {}", routeKey, ip);
             return null;
         }
 
@@ -291,7 +310,6 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         ByteBuf content = msg.content();
         // 按 UTF-8 解码成字符串（请求头里声明的是 application/json; charset=UTF-8）
         String jsonStr = content.toString(CharsetUtil.UTF_8);
-        log.info("后台消息:[{}]", jsonStr);
 
         try {
             // JSON 字符串 -> Map。
@@ -301,19 +319,25 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             if (parsed != null) {
                 paramMap.putAll(parsed);
             }
+            // 请求体只在 debug 级别打印：GM 后台改的是玩家数据，
+            // 全量打出来既有体积问题、也可能把敏感字段写进日志文件。
+            // 排查时临时开 debug 即可看到
+            log.debug("GM - 请求体:[{}] from {}", jsonStr, ip);
         } catch (Exception e) {
             // 请求体为空串、或不是合法 JSON 时，按「无参数」继续往下走。
             // 不在这里直接报错，是为了把「参数缺失」的判定交给业务方法——
-            // 它更清楚哪些参数是必填的，能给出比「JSON 格式错误」更有用的提示
-            log.info("后台请求体解析失败，按无参数处理:[{}]", e.getMessage());
+            // 它更清楚哪些参数是必填的，能给出比「JSON 格式错误」更有用的提示。
+            // 因此这里用 debug：空 body 是常见且合法的情况，不该在 info 级别刷屏
+            log.debug("GM - 请求体解析失败，按无参数处理:[{}] from {}", routeKey, ip, e);
         }
 
         try {
             // 反射调用，拿到 JSON 响应体
             return invoke(wrapper, paramMap);
         } catch (Exception e) {
-            // 同 GET：业务异常转成响应内容返回，不中断连接
-            log.error("GM - 消息处理出错:[{}]", e.getMessage(), e);
+            // 同 GET：业务异常转成响应内容返回，不中断连接。
+            // 日志格式也与 GET 分支保持一致，带上路由与来源 IP
+            log.error("GM - 消息处理出错:[{}] from {} -> {}", routeKey, ip, e.getMessage(), e);
             return errorResult(e);
         }
     }
@@ -351,8 +375,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             // GM 的校验方法同时承担「调用任务方法并产出 JSON」的职责，缺了它就没有响应可返回。
             // 通常是控制器忘了写 @GmController(checkMethod) 指定的那个方法。
             // 这里给明确报错，避免直接抛一个难以定位的空指针。
-            throw new IllegalStateException("GM 控制器缺少校验方法，无法处理请求: "
-                    + wrapper.bean().getClass().getSimpleName() + "#" + wrapper.taskMethod().getName());
+            throw new IllegalStateException("GM 控制器缺少校验方法，无法处理请求: " + wrapper.bean().getClass().getSimpleName() + "#" + wrapper.taskMethod().getName());
         }
         // invoke(目标对象, 参数1, 参数2...)：
         //   目标对象  —— checker 是实例方法，所以要传控制器实例
@@ -408,8 +431,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json; charset=UTF-8");
         // 允许跨域访问（后台页面与接口域名不同时需要）
         response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-        response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS,
-                "Origin, X-Requested-With, Content-Type, Accept");
+        response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, "Origin, X-Requested-With, Content-Type, Accept");
         response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, "GET, POST, PUT, DELETE");
 
         // 必须设置 Content-Length：不设置的话客户端要靠连接关闭来判断响应结束，
@@ -422,10 +444,19 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        // 连接级异常（读写出错、协议异常等）会走到这里。
-        // 例：日志打出 "连接错误捕获:[3a6ee7b3]" 与 "错误信息:[IOException][Connection reset by peer]"
-        log.info("netty http - 连接错误捕获:[{}]", ctx.channel().id().asShortText());
-        log.info("netty http - 错误信息:[{}][{}]", cause.getClass().getSimpleName(), cause.getMessage());
+        // 连接级异常（客户端半路断开、请求体超限、协议错乱等）会走到这里。
+        //
+        // 用 warn 而非 info：这是「出了问题」而不是「正常流程」。
+        // 但也不用 error——多数情况是客户端主动断开，不是服务端的错。
+        //
+        // 合并成一条：原来拆成两条打，看日志的人容易误以为是两个独立问题。
+        // 例：GM - 连接异常，已关闭:[3a6ee7b3][IOException][Connection reset by peer]
+        log.warn("GM - 连接异常，已关闭:[{}][{}][{}]",
+                ctx.channel().id().asShortText(), cause.getClass().getSimpleName(), cause.getMessage());
+        // 堆栈单独放 debug：warn 那条始终只占一行，需要深挖时再开 debug。
+        // 直接把它挂在 warn 上会让日志被大片堆栈淹没，而这些堆栈多数没有价值
+        log.debug("GM - 连接异常堆栈:", cause);
+
         // 关闭出错的连接。原实现只把异常抛给后续处理器，连接不会被关闭
         ctx.close();
     }

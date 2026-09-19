@@ -79,13 +79,6 @@ public class HttpNetwork extends BaseNetwork {
     }
 
     @Override
-    protected void removeClientChannel(Object connect) {
-        // 走到这里说明上层绕过了 getClientChannel 的判空直接调用——正常情况下不会发生。
-        // 空操作无副作用，所以用 debug：平时不打印，出问题时开 debug 才能看到线索
-        log.debug("netty http - 收到移除连接的请求，但 HTTP 不维护连接表，忽略:[{}]", connect);
-    }
-
-    @Override
     public void sendMessageToClient(int msgCode, Message msg, Object connect, NetworkMsgType msgType) {
         // HTTP 是请求-响应模型，服务端拿不到「客户端连接」，无法主动推送。
         //
@@ -104,4 +97,10 @@ public class HttpNetwork extends BaseNetwork {
         log.debug("netty http - 收到关闭连接的请求，但 HTTP 不维护连接表，忽略:[{}]", connect);
     }
 
+    @Override
+    protected void removeClientChannel(Object connect) {
+        // 走到这里说明上层绕过了 getClientChannel 的判空直接调用——正常情况下不会发生。
+        // 空操作无副作用，所以用 debug：平时不打印，出问题时开 debug 才能看到线索
+        log.debug("netty http - 收到移除连接的请求，但 HTTP 不维护连接表，忽略:[{}]", connect);
+    }
 }
