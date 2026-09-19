@@ -16,8 +16,15 @@ import org.springframework.stereotype.Component;
  *
  * <p>与 TCP 那条「客户端长连接」不同，HTTP 是短连接、一问一答：
  * 服务端不需要记住谁连着，也无法主动向客户端推送消息。因此本类只实现
- * 「监听端口 + 装配流水线」，连接表的三个钩子都返回空实现并记录错误——
- * 上层若误用主动下发能力，日志里会立刻暴露。</p>
+ * 「监听端口 + 装配流水线」，连接表的三个钩子返回空实现。</p>
+ *
+ * <p>这三个空实现留了日志，按「误用会造成什么后果」分级：</p>
+ * <ul>
+ *     <li>{@code sendMessageToClient} —— 消息会被静默丢弃，调用方却以为发成功了，
+ *         故用 {@code warn}，保证日志里留有痕迹；</li>
+ *     <li>{@code closeClientConnect} / {@code removeClientChannel} —— 空操作无副作用，
+ *         且正常流程下根本不会走到，故用 {@code debug}，平时不产生噪声。</li>
+ * </ul>
  *
  * <p>监听参数取自 {@code application.yml} 的 {@code game.network.http} 配置。</p>
  *
@@ -65,25 +72,36 @@ public class HttpNetwork extends BaseNetwork {
 
     @Override
     protected ChannelHandlerContext getClientChannel(Object connect) {
-        // HTTP 不保存连接，无连接表可查
+        // HTTP 不保存连接，无连接表可查。
+        // 这里不记日志：本方法会被 closeClientConnect 等通用流程调用，
+        // 返回 null 是 HTTP 的正常语义，记日志只会制造噪声
         return null;
     }
 
     @Override
     protected void removeClientChannel(Object connect) {
-        //log.trace("netty http - removeClientChannel");
+        // 走到这里说明上层绕过了 getClientChannel 的判空直接调用——正常情况下不会发生。
+        // 空操作无副作用，所以用 debug：平时不打印，出问题时开 debug 才能看到线索
+        log.debug("netty http - 收到移除连接的请求，但 HTTP 不维护连接表，忽略:[{}]", connect);
     }
 
     @Override
     public void sendMessageToClient(int msgCode, Message msg, Object connect, NetworkMsgType msgType) {
         // HTTP 是请求-响应模型，服务端拿不到「客户端连接」，无法主动推送。
-        // 后台需要实时通知时应该用轮询，或另走 WebSocket。
-        //log.trace("netty http - sendMessageToClient");
+        //
+        // 这条用 warn 而非 debug：与另外两个空操作不同，这里**消息会被静默丢弃**——
+        // 调用方以为发出去了，实际对方永远收不到。必须留下可见的痕迹，否则这种
+        // 「消息石沉大海」的问题极难排查。
+        // 后台需要实时通知时应改用轮询，或另走 WebSocket 长连接。
+        log.warn("netty http - HTTP 不支持服务端主动推送，消息[{}]已被丢弃，连接:[{}]",
+                Integer.toHexString(msgCode), connect);
     }
 
     @Override
     public void closeClientConnect(Object connect) {
-        //log.trace("netty http - closeClientConnect");
+        // 同 removeClientChannel：正常路径下不会走到（getClientChannel 恒为 null，
+        // 通用流程会提前返回），空操作无副作用，用 debug
+        log.debug("netty http - 收到关闭连接的请求，但 HTTP 不维护连接表，忽略:[{}]", connect);
     }
 
 }

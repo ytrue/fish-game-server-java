@@ -1,9 +1,11 @@
 package com.ytrue.game.framework.network.netty.http;
 
 import com.ytrue.game.framework.engine.config.ServerConfig;
+import com.ytrue.game.framework.engine.data.NetworkMsgType;
 import com.ytrue.game.framework.engine.register.AppHandlerRegister;
 import com.ytrue.game.framework.engine.utils.SpringUtils;
 import com.ytrue.game.framework.network.controller.NetworkGmController;
+import com.ytrue.game.framework.network.proto.NetworkMessage.PingRequest;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.net.ServerSocket;
@@ -109,6 +111,25 @@ public class HttpNetworkTest {
         check("状态码", r8.statusCode(), 200);
         check("  响应体", r8.body(), "{\"pingTime\":42}");
 
+        section("11. HTTP 不支持的能力（应记日志但绝不抛异常）");
+        // 这几个是 BaseNetwork 的通用钩子，HTTP 无法真正实现。
+        // 关键契约：调用方不该因为用了 HTTP 就崩掉，只是能力不生效而已
+        try {
+            network.sendMessageToClient(0x20000000, PingRequest.getDefaultInstance(),
+                    "some-connect", NetworkMsgType.BINARY);
+            ok("sendMessageToClient 未抛异常（消息被丢弃并记 warn）");
+        } catch (Exception e) {
+            bad("sendMessageToClient 抛了异常", e.toString());
+        }
+        try {
+            network.closeClientConnect("some-connect");
+            ok("closeClientConnect 未抛异常");
+        } catch (Exception e) {
+            bad("closeClientConnect 抛了异常", e.toString());
+        }
+        check("getClientChannel 返回 null", network.getClientChannel("some-connect"), null);
+        check("getClientIp 返回空串", network.getClientIp("some-connect"), "");
+
         ctx.close();
         System.out.printf("%n========== 通过 %d / 失败 %d ==========%n", pass, fail);
         System.exit(fail > 0 ? 1 : 0);
@@ -170,6 +191,18 @@ public class HttpNetworkTest {
             fail++;
             System.out.printf("  [失败] %-32s 期望=[%s] 实际=[%s]%n", what, expected, actual);
         }
+    }
+
+    /** 记一次通过。 */
+    static void ok(String msg) {
+        pass++;
+        System.out.println("  [通过] " + msg);
+    }
+
+    /** 记一次失败。 */
+    static void bad(String what, String detail) {
+        fail++;
+        System.out.println("  [失败] " + what + " -> " + detail);
     }
 
 }
