@@ -96,9 +96,7 @@ public final class ClientSender {
      * @param transport 该连接所属的传输类型
      * @param msgType   消息编解码类型
      */
-    public static void sendMessage(int msgCode, Message msg, String connect,
-                                   TransportType transport, NetworkMsgType msgType) {
-        log.debug("向客户端[{}]发送消息[{}][{}]", connect, msgCode, msg.getClass().getSimpleName());
+    public static void sendMessage(int msgCode, Message msg, String connect, TransportType transport, NetworkMsgType msgType) {
         network(transport).sendMessageToClient(msgCode, msg, connect, msgType);
     }
 
