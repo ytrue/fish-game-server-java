@@ -68,31 +68,85 @@ public class UserContainer {
     }
 
     /**
-     * 添加 / 更新用户。
+     * 添加 / 更新用户索引。
+     *
+     * <p>只写入「键确实有效」的维度：</p>
+     * <ul>
+     *     <li>连接维度始终可写——{@code connect} 是每条连接唯一的 channelId；</li>
+     *     <li>身份维度（id / openid / unionid / username）仅在用户已建号、且该字段有值时才写。</li>
+     * </ul>
+     *
+     * <p>不判断会有两类问题：未登录用户没有实体，{@code getId()} 恒为 {@code 0}、
+     * 其余恒为空串，所有连接会挤在同几个键上互相覆盖；而已登录用户也可能缺某一项
+     * （账号密码用户没有 openid，微信用户可能没有 username），
+     * 而 {@link ConcurrentHashMap} 不允许 null 键，直接写入会抛 {@code NullPointerException}。</p>
      *
      * @param user 用户
      */
     public static void putServerUser(ServerUser user) {
-        // 同时写入五张索引表，保证各维度都能查到同一用户
+        // 连接索引：key 是每条连接唯一的 channelId，任何时候都安全
         USER_CONNECT_MAP.put(user.getConnect(), user);
+
+        // 未建号的用户只有连接身份，到此为止
+        if (user.getEntity() == null) {
+            return;
+        }
+
+        // id 是 long 原生类型，建号后必定有效
         USER_ID_MAP.put(user.getId(), user);
-        USER_OPENID_MAP.put(user.getOpenid(), user);
-        USER_UNIONID_MAP.put(user.getUnionid(), user);
-        USER_NAME_MAP.put(user.getUsername(), user);
+        putIfPresent(USER_OPENID_MAP, user.getOpenid(), user);
+        putIfPresent(USER_UNIONID_MAP, user.getUnionid(), user);
+        putIfPresent(USER_NAME_MAP, user.getUsername(), user);
     }
 
     /**
-     * 移除用户。
+     * 移除用户索引。
+     *
+     * <p>与 {@link #putServerUser} 对称，只处理当初写入过的维度。</p>
+     *
+     * <p>用两参 {@code remove(key, value)} 而非单参版本：只在「该键当前映射的正是这个实例」
+     * 时才删除，避免误删他人索引。</p>
      *
      * @param user 用户
      */
     public static void removeServerUser(ServerUser user) {
-        // 从五张索引表中同步移除
-        USER_CONNECT_MAP.remove(user.getConnect());
-        USER_ID_MAP.remove(user.getId());
-        USER_OPENID_MAP.remove(user.getOpenid());
-        USER_UNIONID_MAP.remove(user.getUnionid());
-        USER_NAME_MAP.remove(user.getUsername());
+        USER_CONNECT_MAP.remove(user.getConnect(), user);
+
+        // 与写入侧对称：未建号时只写过连接索引
+        if (user.getEntity() == null) {
+            return;
+        }
+
+        USER_ID_MAP.remove(user.getId(), user);
+        removeIfPresent(USER_OPENID_MAP, user.getOpenid(), user);
+        removeIfPresent(USER_UNIONID_MAP, user.getUnionid(), user);
+        removeIfPresent(USER_NAME_MAP, user.getUsername(), user);
+    }
+
+    /**
+     * 键有效时写入索引。
+     *
+     * @param map  目标索引表
+     * @param key  索引键（为 {@code null} 或空串时跳过）
+     * @param user 用户
+     */
+    private static void putIfPresent(Map<String, ServerUser> map, String key, ServerUser user) {
+        if (key != null && !key.isEmpty()) {
+            map.put(key, user);
+        }
+    }
+
+    /**
+     * 键有效时移除索引。
+     *
+     * @param map  目标索引表
+     * @param key  索引键（为 {@code null} 或空串时跳过）
+     * @param user 用户
+     */
+    private static void removeIfPresent(Map<String, ServerUser> map, String key, ServerUser user) {
+        if (key != null && !key.isEmpty()) {
+            map.remove(key, user);
+        }
     }
 
     /**
@@ -210,7 +264,7 @@ public class UserContainer {
         // 清理「索引键与用户当前 id 不符」的脏条目。
         // 典型来源：连接刚建立时用户还没有实体（getId() 为 0），putServerUser 会以 0 为键建一条索引；
         // 登录拿到实体后 id 变成真实值，再 put 一次会新建条目，原来那个 0 键条目就此残留。
-        //
+        // TODO 这个后面在理解
         // 必须按 entry 的 key 删除：removeServerUser 是按用户「当前」id/connect 删的，
         // 对不上这条残留的键，删了等于没删（同一批脏数据会被反复扫出来）。
         USER_ID_MAP.entrySet().stream()
