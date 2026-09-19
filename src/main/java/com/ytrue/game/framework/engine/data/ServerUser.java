@@ -77,6 +77,16 @@ public class ServerUser {
     private NetworkMsgType msgType = NetworkMsgType.BINARY;
 
     /**
+     * 承载该连接的传输类型。
+     *
+     * <p>由各传输的处理器在连接建立时写入。服务端主动下发消息时靠它决定走哪条网络——
+     * TCP 与 WebSocket 各有独立的连接表，走错表会查不到连接、消息被静默丢弃。</p>
+     *
+     * <p>默认 {@link TransportType#TCP}：TCP 是客户端主通道，也是历史行为。</p>
+     */
+    private TransportType transportType = TransportType.TCP;
+
+    /**
      * 是否登录成功。
      */
     private boolean loginSuccess = true;

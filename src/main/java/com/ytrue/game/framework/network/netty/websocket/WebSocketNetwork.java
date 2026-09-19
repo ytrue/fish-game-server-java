@@ -28,10 +28,18 @@ import org.springframework.stereotype.Component;
  * @since 1.0.0
  */
 @Slf4j
-@Component
+@Component(WebSocketNetwork.BEAN_NAME)
 @Qualifier("websocket")
 @RequiredArgsConstructor
 public class WebSocketNetwork extends BaseNetwork {
+
+    /**
+     * 本实现在容器中的 bean 名。
+     *
+     * <p>{@code ClientSender} 需要按传输类型找到对应的网络实现（TCP 与 WebSocket 各有独立连接表），
+     * 显式声明名字比依赖类名推导出的默认名更可靠。</p>
+     */
+    public static final String BEAN_NAME = "websocketNetwork";
 
     /**
      * WebSocket 消息处理器（同时持有全局连接表）。

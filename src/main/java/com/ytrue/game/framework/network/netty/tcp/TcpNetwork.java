@@ -30,10 +30,18 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Primary
-@Component
+@Component(TcpNetwork.BEAN_NAME)
 @Qualifier("tcpSocket")
 @RequiredArgsConstructor
 public class TcpNetwork extends BaseNetwork {
+
+    /**
+     * 本实现在容器中的 bean 名。
+     *
+     * <p>{@code ClientSender} 需要按传输类型找到对应的网络实现（TCP 与 WebSocket 各有独立连接表），
+     * 显式声明名字比依赖类名推导出的默认名更可靠——默认名容易随类改名而变，且不易检索。</p>
+     */
+    public static final String BEAN_NAME = "tcpNetwork";
 
     /**
      * TCP 消息处理器（同时持有全局连接表）。

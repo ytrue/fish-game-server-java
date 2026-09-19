@@ -4,6 +4,7 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
 import com.ytrue.game.framework.engine.container.UserContainer;
 import com.ytrue.game.framework.engine.data.ServerUser;
+import com.ytrue.game.framework.engine.data.TransportType;
 import com.ytrue.game.framework.engine.register.AppHandlerRegister;
 import com.ytrue.game.framework.engine.utils.SpringEventPublisher;
 import com.ytrue.game.framework.engine.wrapper.AppHandlerWrapper;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -68,15 +70,15 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        // 连接建立：先算出本连接的标识
-        String channelId = getChannelId(ctx.channel());
-
         // 建立会话对象：此刻还没登录，只是「连上了」的占位用户
         ServerUser user = new ServerUser();
-        user.setConnect(channelId);
+        user.setConnect(getChannelId(ctx.channel()));
         user.setLastActiveTime(System.currentTimeMillis());
+        // 标记本会话架在哪条网络上。服务端主动下发时（ClientSender）靠它决定走哪条连接表，
+        // 走错会查不到连接、消息被静默丢弃——所以必须显式打标，不能依赖默认值
+        user.setTransportType(TransportType.WEBSOCKET);
         // 登记到连接表，使其能被 sendMessageToClient 等主动下发操作找到
-        putClientChannel(channelId, ctx);
+        putClientChannel(getChannelId(ctx.channel()), ctx);
         // 登记到用户容器，使其能被按连接维度查到
         UserContainer.putServerUser(user);
         super.channelActive(ctx);
@@ -150,7 +152,7 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
         // ④ 取会话对象并刷新活跃时间——收到任何消息都算一次心跳
         ServerUser user = UserContainer.getUserByConnect(channelId);
         long currentTime = System.currentTimeMillis();
-        if (user != null) {
+        if (Objects.nonNull(user)) {
             user.setLastActiveTime(currentTime);
         }
 
@@ -158,7 +160,7 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
             Message req = (Message) parseFrom.invoke(null, message.getBody());
             Method taskMethod = wrapper.taskMethod();
 
-            if (wrapper.checkMethod() != null) {
+            if (Objects.nonNull(wrapper.checkMethod())) {
                 // 有校验方法：交给它决定是否执行、以及怎么执行任务方法
                 wrapper.checkMethod().invoke(wrapper.bean(), taskMethod, req, user, wrapper.exp());
             } else {

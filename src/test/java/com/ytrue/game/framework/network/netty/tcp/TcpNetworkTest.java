@@ -1,6 +1,5 @@
 package com.ytrue.game.framework.network.netty.tcp;
 
-import com.google.protobuf.Message;
 import com.ytrue.game.framework.engine.config.ServerConfig;
 import com.ytrue.game.framework.engine.container.UserContainer;
 import com.ytrue.game.framework.engine.data.ServerUser;

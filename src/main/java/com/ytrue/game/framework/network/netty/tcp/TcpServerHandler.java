@@ -4,6 +4,7 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
 import com.ytrue.game.framework.engine.container.UserContainer;
 import com.ytrue.game.framework.engine.data.ServerUser;
+import com.ytrue.game.framework.engine.data.TransportType;
 import com.ytrue.game.framework.engine.register.AppHandlerRegister;
 import com.ytrue.game.framework.engine.utils.SpringEventPublisher;
 import com.ytrue.game.framework.engine.wrapper.AppHandlerWrapper;
@@ -65,6 +66,9 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
         user.setConnect(channelId);
         // 置上最后活跃时间，心跳检测据此判断是否超时
         user.setLastActiveTime(System.currentTimeMillis());
+        // 标记本会话架在哪条网络上。服务端主动下发时（ClientSender）靠它决定走哪条连接表，
+        // 走错会查不到连接、消息被静默丢弃——所以必须显式打标，不能依赖默认值
+        user.setTransportType(TransportType.TCP);
         // 登记到连接表，使其能被 sendMessageToClient 等主动下发操作找到
         putClientChannel(channelId, ctx);
         // 登记到用户容器，使其能被按连接维度查到
