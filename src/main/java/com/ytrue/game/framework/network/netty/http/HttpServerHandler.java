@@ -188,7 +188,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         //    真正的路径错误反而被淹没。回 204（无内容）并只在 debug 级别留痕
         if (IGNORED_PATHS.contains(path)) {
             sendNoContent(ctx);
-            log.debug("GM - 忽略浏览器自动请求:[{} {}] from {}", msg.method().name(), path, ip);
+            log.debug("httpServer - 忽略浏览器自动请求:[{} {}] from {}", msg.method().name(), path, ip);
             return;
         }
 
@@ -280,7 +280,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             // 说「接口」而不是「消息」：这里找不到的是 HTTP 路径，不是某条业务消息。
             // 用 warn 而非 info：GM 是内网接口，出现未注册路径说明前端调错了，
             // 或是有人在扫接口——两种情况都值得关注。带上方法与 IP 便于区分
-            log.warn("GM - 未注册的接口:[{} {}] from {}，已返回 404", methodName, routeKey, ip);
+            log.warn("httpServer-get - 未注册的接口:[{} {}] from {}，已返回 404", methodName, routeKey, ip);
             return null;
         }
 
@@ -292,7 +292,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             // 后台页面能直接看到出错原因。
             // 日志里带上「方法 路径」与来源 IP，否则只看到一句异常，
             // 不知道是哪个接口、谁调的
-            log.error("GM - 接口处理异常:[{} {}] from {}，原因: {}",
+            log.error("httpServer-get - 接口处理异常:[{} {}] from {}，原因: {}",
                     methodName, routeKey, ip, e.getMessage(), e);
             return errorResult(e);
         }
@@ -336,7 +336,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         if (wrapper == null) {
             sendError(ctx, HttpResponseStatus.NOT_FOUND);
             // 与 GET 分支保持同样的级别与措辞，避免同一件事在两条路径上表现不一致
-            log.warn("GM - 未注册的接口:[{} {}] from {}，已返回 404", methodName, routeKey, ip);
+            log.warn("httpServer-post - 未注册的接口:[{} {}] from {}，已返回 404", methodName, routeKey, ip);
             return null;
         }
 
@@ -359,14 +359,14 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             // 请求体只在 debug 级别打印：GM 后台改的是玩家数据，
             // 全量打出来既有体积问题、也可能把敏感字段写进日志文件。
             // 排查时临时开 debug 即可看到。带上接口路径，避免并发请求的日志串在一起分不清
-            log.debug("GM - 请求体:[{} {}] from {}，内容: {}", methodName, routeKey, ip, jsonStr);
+            log.debug("httpServer-post - 请求体:[{} {}] from {}，内容: {}", methodName, routeKey, ip, jsonStr);
         } catch (Exception e) {
             // 请求体为空串、或不是合法 JSON 时，按「无参数」继续往下走。
             // 不在这里直接报错，是为了把「参数缺失」的判定交给业务方法——
             // 它更清楚哪些参数是必填的，能给出比「JSON 格式错误」更有用的提示。
             // 因此这里用 debug：空 body 是常见且合法的情况，不该在 info 级别刷屏。
             // 日志里带上原始内容，否则光看「解析失败」不知道失败的输入长什么样
-            log.debug("GM - 请求体解析失败:[{} {}] from {}，原内容: [{}]，按无参数继续。原因: {}",
+            log.debug("httpServer-post - 请求体解析失败:[{} {}] from {}，原内容: [{}]，按无参数继续。原因: {}",
                     methodName, routeKey, ip, jsonStr, e.getMessage());
         }
 
@@ -376,7 +376,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         } catch (Exception e) {
             // 同 GET：业务异常转成响应内容返回，不中断连接。
             // 日志格式也与 GET 分支保持一致
-            log.error("GM - 接口处理异常:[{} {}] from {}，原因: {}",
+            log.error("httpServer-post - 接口处理异常:[{} {}] from {}，原因: {}",
                     methodName, routeKey, ip, e.getMessage(), e);
             return errorResult(e);
         }
@@ -415,7 +415,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             // GM 的校验方法同时承担「调用任务方法并产出 JSON」的职责，缺了它就没有响应可返回。
             // 通常是控制器忘了写 @GmController(checkMethod) 指定的那个方法。
             // 这里给明确报错，避免直接抛一个难以定位的空指针。
-            throw new IllegalStateException("GM 控制器缺少校验方法，无法处理请求: " + wrapper.bean().getClass().getSimpleName() + "#" + wrapper.taskMethod().getName());
+            throw new IllegalStateException("httpServer - 控制器缺少校验方法，无法处理请求: " + wrapper.bean().getClass().getSimpleName() + "#" + wrapper.taskMethod().getName());
         }
         // invoke(目标对象, 参数1, 参数2...)：
         //   目标对象  —— checker 是实例方法，所以要传控制器实例
@@ -492,12 +492,12 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         // 合并成一条：原来拆成两条打，看日志的人容易误以为是两个独立问题。
         // 带上来源 IP：不然只知道某条连接出错了，不知道是谁。
         // 例：GM - 连接异常，已关闭连接:[3a6ee7b3] from 192.168.1.50，原因: IOException: Connection reset by peer
-        log.warn("GM - 连接异常，已关闭连接:[{}] from {}，原因: {}: {}",
+        log.warn("httpServer - 连接异常，已关闭连接:[{}] from {}，原因: {}: {}",
                 ctx.channel().id().asShortText(), remoteIp(ctx),
                 cause.getClass().getSimpleName(), cause.getMessage());
         // 堆栈单独放 debug：warn 那条始终只占一行，需要深挖时再开 debug。
         // 直接把它挂在 warn 上会让日志被大片堆栈淹没，而这些堆栈多数没有价值
-        log.debug("GM - 连接异常堆栈:", cause);
+        log.debug("httpServer - 连接异常堆栈:", cause);
 
         // 关闭出错的连接。原实现只把异常抛给后续处理器，连接不会被关闭
         ctx.close();

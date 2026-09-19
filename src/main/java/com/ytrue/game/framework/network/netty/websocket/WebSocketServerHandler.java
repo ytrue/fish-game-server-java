@@ -97,7 +97,7 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
             // 发布退出事件：各业务模块清理自身数据，最后由 NetExitFinishListener 兜底回写数据库
             SpringEventPublisher.publish(new NetExitEvent(user));
         } else {
-            log.info("webSocket - 连接[{}]断开，但未找到对应会话（可能尚未完成登记）", channelId);
+            log.warn("webSocketServer - 连接[{}]断开，但未找到对应会话（可能尚未完成登记）", channelId);
         }
 
         // 从连接表移除，避免连接表随连接数增长而无限膨胀
@@ -124,7 +124,7 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
             //
             // 只打异常消息、不挂堆栈：解析失败的原因就那么几种，堆栈每次都是同一串
             // Netty 调用链，除了刷屏没有别的用处；需要深挖时再把 e 挂上即可
-            log.warn("webSocket - 消息解析失败，已丢弃该帧:[{}] 原因: {}", channelId, e.getMessage());
+            log.warn("webSocketServer - 消息解析失败，已丢弃该帧:[{}] 原因: {}", channelId, e.getMessage());
             return;
         }
 
@@ -133,7 +133,7 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
         AppHandlerWrapper wrapper = register.getAppHandlerWrapperMap().get(message.getCode());
         if (wrapper == null) {
             // 未注册的消息码：只记录，不中断连接
-            log.info("webSocket - 注册消息中未找到消息:[{}]", Integer.toHexString(message.getCode()));
+            log.warn("webSocketServer - 注册消息中未找到消息:[{}]", Integer.toHexString(message.getCode()));
             return;
         }
 
@@ -144,7 +144,7 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
         try {
             parseFrom = paramType.getMethod("parseFrom", ByteString.class);
         } catch (NoSuchMethodException e) {
-            log.error("webSocket - 处理方法的首个参数不是 Protobuf 消息类型:[{}#{}]",
+            log.error("webSocketServer - 处理方法的首个参数不是 Protobuf 消息类型:[{}#{}]",
                     wrapper.bean().getClass().getSimpleName(), wrapper.taskMethod().getName(), e);
             return;
         }
@@ -169,21 +169,21 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
             }
         } catch (Exception e) {
             // 单条消息处理失败不应拖垮整条连接，记录后继续
-            log.error("处理客户端消息出错:[{}]", e.getMessage(), e);
+            log.error("webSocketServer - 处理客户端消息出错:[{}]", e.getMessage(), e);
         }
 
         // ⑤ 耗时告警：处理逻辑跑在 EventLoop 线程上，过慢会阻塞同一 EventLoop 上的其它连接
         long cost = System.currentTimeMillis() - currentTime;
         if (cost > INetwork.WARN_TIME) {
-            log.warn("消息[{}]处理时间[{}]过长", Integer.toHexString(message.getCode()), cost);
+            log.warn("webSocketServer - 消息[{}]处理时间[{}]过长", Integer.toHexString(message.getCode()), cost);
         }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         String channelId = getChannelId(ctx.channel());
-        log.info("webSocket - 连接错误捕获:[{}]", channelId);
-        log.info("webSocket - 错误信息:[{}][{}]", cause.getClass().getSimpleName(), cause.getMessage());
+        log.warn("webSocketServer - 连接错误捕获:[{}]", channelId);
+        log.warn("webSocketServer - 错误信息:[{}][{}]", cause.getClass().getSimpleName(), cause.getMessage());
 
         // 关闭出错的连接。关闭会触发 channelInactive，由它统一做连接表清理与退出事件
         ctx.close();
@@ -207,7 +207,7 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
      */
     public void putClientChannel(String channelId, ChannelHandlerContext channel) {
         channelMap.put(channelId, channel);
-        log.info("webSocket - 连接成功:[{}] 当前连接数量[{}]", channelId, channelMap.size());
+        log.debug("webSocket - 连接成功:[{}] 当前连接数量[{}]", channelId, channelMap.size());
     }
 
     /**
@@ -218,9 +218,9 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
     public void removeClientChannel(String channelId) {
         ChannelHandlerContext context = channelMap.remove(channelId);
         if (context == null) {
-            log.info("webSocket - 移除失败，链接表不存在连接[{}], 当前连接数量[{}]", channelId, channelMap.size());
+            log.warn("webSocket - 移除失败，链接表不存在连接[{}], 当前连接数量[{}]", channelId, channelMap.size());
         } else {
-            log.info("webSocket - 断开并移除成功[{}] 当前连接数量[{}]", channelId, channelMap.size());
+            log.debug("webSocket - 断开并移除成功[{}] 当前连接数量[{}]", channelId, channelMap.size());
         }
     }
 

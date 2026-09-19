@@ -151,7 +151,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
         if (wrapper == null) {
             // 客户端发来了没注册过的消息码：只记一条日志，不中断连接。
             // 例：日志里出现 "未找到消息:[7fffffff]"，说明客户端协议版本和服务端对不上
-            log.info("netty - 注册消息中未找到消息:[{}]", Integer.toHexString(message.getCode()));
+            log.warn("tcpServer - 注册消息中未找到消息:[{}]", Integer.toHexString(message.getCode()));
             // 注意：这里不能 return，否则下面的 super.channelRead 不会执行，Netty 的资源回收链会断
         } else {
             // ④ 反序列化消息体。
@@ -201,7 +201,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
             } catch (Exception e) {
                 // 单条消息处理失败不应拖垮整条连接：记录后继续，连接保持存活。
                 // 业务方法里抛出的异常（如空指针、参数非法）都会被这里捕获。
-                log.error("处理客户端消息出错:[{}]", e.getMessage(), e);
+                log.error("tcpServer - 处理客户端消息出错:[{}]", e.getMessage(), e);
             }
 
             // ⑧ 耗时告警。处理逻辑跑在 Netty 的 EventLoop 线程上，
@@ -210,7 +210,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
             //        "消息[10000000]处理时间[350]过长"
             long cost = System.currentTimeMillis() - currentTime;
             if (cost > INetwork.WARN_TIME) {
-                log.warn("消息[{}]处理时间[{}]过长", Integer.toHexString(message.getCode()), cost);
+                log.warn("tcpServer - 消息[{}]处理时间[{}]过长", Integer.toHexString(message.getCode()), cost);
             }
         }
 
@@ -227,8 +227,8 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         String channelId = getChannelId(ctx.channel());
-        log.info("netty - 连接错误捕获:[{}]", channelId);
-        log.info("netty - 错误信息:[{}][{}]", cause.getClass().getSimpleName(), cause.getMessage());
+        log.warn("tcpServer -  - 连接错误捕获:[{}]", channelId);
+        log.warn("tcpServer -  - 错误信息:[{}][{}]", cause.getClass().getSimpleName(), cause.getMessage());
 
         // 关闭出错的连接。关闭会触发 channelInactive，由它统一做连接表清理与退出事件，
         // 这里不再重复清理，避免同一连接被处理两次
@@ -253,7 +253,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
      */
     public void putClientChannel(String channelId, ChannelHandlerContext channel) {
         channelMap.put(channelId, channel);
-        log.info("netty - TcpSocket连接成功:[{}] 当前连接数量[{}]", channelId, channelMap.size());
+        log.debug("tcpServer -  - TcpSocket连接成功:[{}] 当前连接数量[{}]", channelId, channelMap.size());
     }
 
     /**
@@ -264,9 +264,9 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
     public void removeClientChannel(String channelId) {
         ChannelHandlerContext context = channelMap.remove(channelId);
         if (context == null) {
-            log.info("netty - TcpSocket移除失败，链接表不存在连接[{}], 当前连接数量[{}]", channelId, channelMap.size());
+            log.warn("tcpServer -  - TcpSocket移除失败，链接表不存在连接[{}], 当前连接数量[{}]", channelId, channelMap.size());
         } else {
-            log.info("netty - TcpSocket断开并移除成功[{}] 当前连接数量[{}]", channelId, channelMap.size());
+            log.debug("tcpServer -  - TcpSocket断开并移除成功[{}] 当前连接数量[{}]", channelId, channelMap.size());
         }
     }
 
