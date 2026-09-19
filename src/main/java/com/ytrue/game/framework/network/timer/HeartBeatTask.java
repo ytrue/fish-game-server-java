@@ -52,9 +52,11 @@ public class HeartBeatTask {
      */
     @Scheduled(fixedRate = CHECK_INTERVAL)
     public void checkHeartBeat() {
+        // 获取所有的连接
         List<ServerUser> onlineUsers = UserContainer.getActiveServerUsers();
+        // 获取当前13位时间戳
         long now = System.currentTimeMillis();
-
+        // 循环处理
         for (ServerUser user : onlineUsers) {
             // 未登录的会话（只是连上了还没登录）不参与心跳：
             // online 只在登录成功时被置为 true，它们既不回心跳也无所谓超时
@@ -64,8 +66,7 @@ public class HeartBeatTask {
 
             if (user.getLastActiveTime() + OFFLINE_HEART_BEAT_TIME > now) {
                 // 还活着：主动回一条心跳，让客户端确认连接可用
-                ClientSender.sendMessage(NetworkMsgCode.S_C_HEART_BEAT_RESPONSE_VALUE,
-                        HeartBeatResponse.getDefaultInstance(), user);
+                ClientSender.sendMessage(NetworkMsgCode.S_C_HEART_BEAT_RESPONSE_VALUE, HeartBeatResponse.getDefaultInstance(), user);
             } else {
                 // 超时：踢下线。
                 //
