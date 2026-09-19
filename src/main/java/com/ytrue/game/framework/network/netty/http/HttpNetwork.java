@@ -52,9 +52,9 @@ public class HttpNetwork extends BaseNetwork {
         int workerSize = http.getWorkerSize();
 
         if (open(port, bossSize, workerSize)) {
-            log.info("Http     网络服务启动成功~ port:[{}]", port);
+            log.info("Http服务启动成功~ port:[{}]", port);
         } else {
-            log.error("Http     网络服务启动失败~ port:[{}]", port);
+            log.error("Http服务启动失败~ port:[{}]", port);
         }
     }
 
@@ -71,19 +71,19 @@ public class HttpNetwork extends BaseNetwork {
 
     @Override
     protected void removeClientChannel(Object connect) {
-        log.error("netty http - Http服务器没有保存客户端连接信息");
+        //log.trace("netty http - removeClientChannel");
     }
 
     @Override
     public void sendMessageToClient(int msgCode, Message msg, Object connect, NetworkMsgType msgType) {
         // HTTP 是请求-响应模型，服务端拿不到「客户端连接」，无法主动推送。
         // 后台需要实时通知时应该用轮询，或另走 WebSocket。
-        log.error("netty http - 无法主动向HTTP客户端发送消息");
+        //log.trace("netty http - sendMessageToClient");
     }
 
     @Override
     public void closeClientConnect(Object connect) {
-        log.error("netty http - Http服务器没有保存客户端连接信息");
+        //log.trace("netty http - closeClientConnect");
     }
 
 }

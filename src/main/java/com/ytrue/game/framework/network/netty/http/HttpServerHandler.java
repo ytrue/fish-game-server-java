@@ -37,10 +37,41 @@ import java.util.Map;
  * 取真实 IP → 解析 URI 与查询串 → 按路径查 GM 路由表 → 反射调用处理方法 → 返回 JSON
  * </pre>
  *
+ * <p><b>完整例子</b>——后台页面发起一次网络诊断：</p>
+ * <pre>
+ * ① 客户端请求
+ *      GET /ping?pingTime=1234567890123 HTTP/1.1
+ *
+ * ② 本类解析（channelRead0）
+ *      ip         = "192.168.1.50"
+ *      path       = "/ping"                        ← 路由键
+ *      queryStr   = "pingTime=1234567890123"
+ *
+ * ③ 查路由表命中（handleGet）
+ *      GmHandlerWrapper{
+ *          bean        = NetworkGmController 实例
+ *          checkMethod = NetworkGmController.checker(Method, Map)
+ *          taskMethod  = NetworkGmController.doPingTask(Map, Map)
+ *      }
+ *
+ * ④ 反射调用（invoke）
+ *      ctrl.checker(ctrl.doPingTask, {pingTime="1234567890123"})
+ *        └─ 内部：Map resultMap = new HashMap();
+ *                 doPingTask.invoke(ctrl, param, resultMap);
+ *                 return GsonUtils.toJson(resultMap);
+ *
+ * ⑤ 响应
+ *      HTTP/1.1 200 OK
+ *      content-type: application/json; charset=UTF-8
+ *
+ *      {"pingTime":1234567890123}
+ * </pre>
+ *
  * <p>约定：GM 处理方法的签名固定为
- * {@code (Map&lt;String, Object&gt; param, Map&lt;String, Object&gt; resultMap)}，
- * 由控制器上的「校验方法」负责调用并返回 JSON 字符串（见 {@code NetworkGmController.checker}）。
- * 请求参数无论 GET 还是 POST 都会被整理成 {@code param} 传入。</p>
+ * {@code (Map&lt;String, Object&gt; param, Map&lt;String, Object&gt; resultMap)}——
+ * 入参从第一个 Map 里取、出参往第二个 Map 里塞，而不是用返回值。
+ * 由控制器上的「校验方法」负责调用它并序列化成 JSON 字符串
+ * （见 {@code NetworkGmController.checker}）。</p>
  *
  * <p>本类被 {@link Sharable} 标注，是全局唯一实例，自身不持有任何连接状态，
  * 故可被所有连接共享。</p>
@@ -61,12 +92,27 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
     /**
      * 处理一次完整的 HTTP 请求。
      *
+     * <p>以 {@code GET /ping?pingTime=1234567890123 HTTP/1.1} 为例，各步骤变量的值：</p>
+     * <pre>
+     * msg.uri()   = "/ping?pingTime=1234567890123"
+     * msg.method()= GET
+     * ip          = "192.168.1.50"（取自 x-forwarded-for，没有则取 TCP 对端地址）
+     * uri         = "/ping?pingTime=1234567890123"   ← URL 解码后（本例无转义，不变）
+     * queryIndex  = 5                                ← '?' 的下标
+     * path        = "/ping"                          ← 路由键
+     * queryStr    = "pingTime=1234567890123"
+     * </pre>
+     *
+     * <p>随后按 {@code path} 查 GM 路由表，命中 {@code NetworkGmController.doPingTask}，
+     * 返回 JSON 响应体。</p>
+     *
      * @param ctx 通道上下文
      * @param msg 聚合后的完整请求（由 {@link HttpChannelInitializer} 装配的 HttpObjectAggregator 产出）
      */
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) {
         // ① 解码失败的请求直接拒掉（协议格式错误、超长等）
+        //    decoderResult() 由上游的 HttpRequestDecoder 写入，标记这次解码是否成功
         if (!msg.decoderResult().isSuccess()) {
             sendError(ctx, HttpResponseStatus.BAD_REQUEST);
             return;
@@ -74,8 +120,11 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 
         // ② 取真实客户端 IP。经 Nginx 等反向代理时真实 IP 在 x-forwarded-for 头里，
         //    取不到才回退到 TCP 对端地址。
+        //    例：直连时头不存在 -> hasText 为 false -> 走回退分支取到 "127.0.0.1"
+        //        经代理时头可能是 "192.168.1.50" 或 "未知"（部分代理会填 unknown）
         String ip = msg.headers().get("x-forwarded-for");
         if (!StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip)) {
+            // remoteAddress() 是 TCP 对端地址；强制转 InetSocketAddress 后取 IP 字符串
             ip = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress().getHostAddress();
         }
         if (ip == null) {
@@ -85,10 +134,12 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         }
 
         // ③ 解析 URI
-        //    URL 解码：把 %E4%B8%AD 这类转义还原成中文
+        //    URL 解码：把 %E4%B8%AD 这类转义还原成中文。
+        //    例：路径里有中文参数时 "/gm?name=%E5%BC%A0%E4%B8%89" 解码后为 "/gm?name=张三"
         String uri = URLDecoder.decode(msg.uri(), StandardCharsets.UTF_8);
 
         //    查询串起始位置（取第一个 '?'），-1 表示无参数
+        //    例："/ping?pingTime=1" -> 5；"/ping" -> -1
         int queryIndex = uri.indexOf('?');
 
         //    路由键 = 去掉查询串的那部分。
@@ -97,11 +148,14 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         //    斜杠剥不掉，路由键就成了 "/ping/"，查路由表必然落空。
         String path = queryIndex < 0 ? uri : uri.substring(0, queryIndex);
         //    去掉结尾多余的斜杠；根路径 "/" 要保留，不能剥成空串
+        //    例："/ping/" -> "/ping"；"/" -> 仍是 "/"（因为长度不大于 1）
         if (path.length() > 1 && path.endsWith("/")) {
             path = path.substring(0, path.length() - 1);
         }
 
-        // ④ 按请求方法分派
+        // ④ 按请求方法分派。注意用 equals 而不是 ==：
+        //    HttpMethod 的常量是单例，但客户端传来的 method() 可能是新构造的实例，
+        //    用 == 会漏判
         String result;
         if (HttpMethod.GET.equals(msg.method())) {
             // GET 的参数在查询串里
@@ -111,6 +165,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             // POST 的参数在请求体里
             result = handlePost(ctx, msg, path);
         } else {
+            // PUT / DELETE 等未开放（CORS 头里虽然允许，但服务端不处理）
             sendError(ctx, HttpResponseStatus.METHOD_NOT_ALLOWED);
             return;
         }
@@ -119,14 +174,28 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         if (result != null) {
             sendJson(ctx, result);
         }
+        // 注：msg 由父类 SimpleChannelInboundHandler 在本方法返回后自动释放，
+        //     这里不需要（也不能）手动 release
     }
 
     /**
      * 处理 GET 请求：参数写在 URL 查询串里。
      *
-     * <p>例：{@code GET /ping?pingTime=123} → 路由键 {@code /ping}，
-     * 参数 {@code {pingTime: "123"}}（注意值都是字符串，需要时用
-     * {@code JsonMapUtils.parseObject} 转成目标类型）。</p>
+     * <p>以 {@code GET /ping?pingTime=1234567890123&uid=100001} 为例，
+     * 传进本方法时各变量的值：</p>
+     * <pre>
+     * routeKey = "/ping"                                  ← 问号之前的部分（结尾斜杠已在上游剥掉）
+     * queryStr = "pingTime=1234567890123&amp;uid=100001"      ← 问号之后的部分
+     *
+     * 解析后 paramMap = {
+     *     pingTime = "1234567890123",   ← 注意！键值都是「字符串」，不是数字
+     *     uid      = "100001"
+     * }
+     * </pre>
+     *
+     * <p>因此业务侧取值必须走 {@code JsonMapUtils.parseObject(paramMap, "pingTime", TYPE_LONG)}，
+     * 它会把字符串解析成 Long；直接 {@code (Long) paramMap.get("pingTime")} 会抛
+     * {@link ClassCastException}（字符串转不了 Long）。</p>
      *
      * @param ctx      通道上下文
      * @param routeKey 已归一化的路由键（不含查询串与结尾斜杠）
@@ -134,28 +203,44 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
      * @return 响应 JSON 字符串；已自行发送错误响应时返回 {@code null}
      */
     private String handleGet(ChannelHandlerContext ctx, String routeKey, String queryStr) {
+        // 按后台方法的签名约定，参数要打包成 Map 传进去（而不是按位置传参）
         Map<String, Object> paramMap = new HashMap<>();
+
+        // 没有查询串（如 GET /ping）时 paramMap 保持为空，由业务方法自己校验必填项
         if (!queryStr.isEmpty()) {
-            // 查询串形如 name=zzz&age=20，按 & 拆键值对、再按 = 拆名值
+            // 查询串形如 "pingTime=123&uid=100001"，先按 & 拆成一个个键值对
             for (String kv : queryStr.split("&")) {
+                // 再按 = 拆成「参数名」与「参数值」
                 String[] kav = kv.split("=");
-                // 只接受完整的 key=value 形式，忽略残缺片段
+                // 只接受完整的 key=value 两段形式；
+                // 残缺片段（如 "&&"、"=x" 这类）直接忽略，避免解析出无意义的键
                 if (kav.length == 2) {
                     paramMap.put(kav[0], kav[1]);
                 }
             }
         }
 
+        // 拿归一化后的路由键查 GM 路由表。
+        // 例："/ping" -> GmHandlerWrapper{
+        //        bean        = NetworkGmController 实例
+        //        checkMethod = NetworkGmController.checker(Method, Map)
+        //        taskMethod  = NetworkGmController.doPingTask(Map, Map)
+        //     }
         GmHandlerWrapper wrapper = register.getGmHandlerWrapperMap().get(routeKey);
         if (wrapper == null) {
+            // 路径没注册过：回 404，并在这里就把响应发出去。
+            // 返回 null 是给调用方的信号——「我已经回过响应了，你不用再写」
             sendError(ctx, HttpResponseStatus.NOT_FOUND);
             log.info("GM - 消息未找到[{}]", routeKey);
             return null;
         }
 
         try {
+            // 反射调用，拿到 JSON 响应体
             return invoke(wrapper, paramMap);
         } catch (Exception e) {
+            // 业务方法内部抛异常：不让连接挂掉，而是把错误信息作为响应体返回，
+            // 后台页面能直接看到出错原因
             log.error("GM - 消息处理出错:[{}]", e.getMessage(), e);
             return errorResult(e);
         }
@@ -164,12 +249,34 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
     /**
      * 处理 POST 请求：参数写在请求体里（JSON 格式）。
      *
+     * <p>以 {@code POST /ping}、请求体 {@code {"pingTime":1234567890123}} 为例：</p>
+     * <pre>
+     * routeKey = "/ping"
+     * jsonStr  = "{\"pingTime\":1234567890123}"
+     *
+     * 解析后 paramMap = {
+     *     pingTime = 1.234567890123E12    ← 注意！这里是 Double，不是字符串
+     * }
+     * </pre>
+     *
+     * <p><b>GET 与 POST 的参数值类型并不相同</b>，这是很容易踩的一点：</p>
+     * <table border="1">
+     *     <caption>同一份参数经两种方式传入后的实际类型</caption>
+     *     <tr><th>请求方式</th><th>参数来源</th><th>{@code pingTime} 的实际类型</th></tr>
+     *     <tr><td>GET</td><td>URL 查询串</td><td>{@code String "1234567890123"}</td></tr>
+     *     <tr><td>POST</td><td>JSON 请求体</td><td>{@code Double 1.234567890123E12}</td></tr>
+     * </table>
+     *
+     * <p>好在 {@code JsonMapUtils.parseObject} 内部分别处理了 String 与 Double 两个分支，
+     * 业务侧统一用它取值即可，无需关心请求是 GET 还是 POST。</p>
+     *
      * @param ctx      通道上下文
      * @param msg      完整请求
      * @param routeKey 已归一化的路由键（不含查询串与结尾斜杠）
      * @return 响应 JSON 字符串；已自行发送错误响应时返回 {@code null}
      */
     private String handlePost(ChannelHandlerContext ctx, FullHttpRequest msg, String routeKey) {
+        // 先查路由表，路径没注册就直接 404 返回，不必浪费力气解析请求体
         GmHandlerWrapper wrapper = register.getGmHandlerWrapperMap().get(routeKey);
         if (wrapper == null) {
             sendError(ctx, HttpResponseStatus.NOT_FOUND);
@@ -178,25 +285,34 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         }
 
         Map<String, Object> paramMap = new HashMap<>();
+
+        // 取出请求体。上游的 HttpObjectAggregator 已经把分片聚合过，
+        // 所以这里 content() 拿到的是完整内容，不会是半截
         ByteBuf content = msg.content();
+        // 按 UTF-8 解码成字符串（请求头里声明的是 application/json; charset=UTF-8）
         String jsonStr = content.toString(CharsetUtil.UTF_8);
         log.info("后台消息:[{}]", jsonStr);
+
         try {
-            // 请求体解析成 Map。注意：Gson 会把所有数字解析成 Double，
-            // 业务侧取值需走 JsonMapUtils.parseObject 做类型转换
+            // JSON 字符串 -> Map。
+            // 解析用的 Gson 会把所有数字统一解析成 Double（JSON 规范不区分整数与浮点，
+            // Gson 默认一律按 Double 处理），所以取值时务必走 JsonMapUtils.parseObject 转换
             Map<String, Object> parsed = GsonUtils.fromJsonToMap(jsonStr);
             if (parsed != null) {
                 paramMap.putAll(parsed);
             }
         } catch (Exception e) {
-            // 请求体不是合法 JSON（或为空）时按「无参数」继续，
-            // 由业务方法自己校验必填参数——这样空 body 的 POST 也能给出更明确的业务错误
+            // 请求体为空串、或不是合法 JSON 时，按「无参数」继续往下走。
+            // 不在这里直接报错，是为了把「参数缺失」的判定交给业务方法——
+            // 它更清楚哪些参数是必填的，能给出比「JSON 格式错误」更有用的提示
             log.info("后台请求体解析失败，按无参数处理:[{}]", e.getMessage());
         }
 
         try {
+            // 反射调用，拿到 JSON 响应体
             return invoke(wrapper, paramMap);
         } catch (Exception e) {
+            // 同 GET：业务异常转成响应内容返回，不中断连接
             log.error("GM - 消息处理出错:[{}]", e.getMessage(), e);
             return errorResult(e);
         }
@@ -205,8 +321,25 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
     /**
      * 反射调用 GM 处理方法。
      *
-     * <p>由控制器上的校验方法负责实际调用：框架把「处理方法本身」交给它，
-     * 它可以先做权限校验、再决定用哪组参数调用任务方法，最后返回 JSON 字符串。</p>
+     * <p><b>为什么参数是「方法」而不是「参数」</b>：GM 的调用方式由控制器上的校验方法决定，
+     * 所以框架不直接调处理方法，而是把「处理方法本身」当成一个参数交给校验方法，由它决定
+     * 怎么调（可以先做权限校验再调、也可以用不同的参数组合调）。</p>
+     *
+     * <p>以命中 {@code /ping} 为例，本方法执行的就是：</p>
+     * <pre>
+     * wrapper.checkMethod() = NetworkGmController.checker(Method, Map)
+     * wrapper.bean()        = NetworkGmController 实例（记为 ctrl）
+     * wrapper.taskMethod()  = NetworkGmController.doPingTask(Map, Map)
+     * paramMap              = { pingTime = "1234567890123" }
+     *
+     * 实际调用：ctrl.checker(ctrl.doPingTask, paramMap)
+     *
+     * 而 checker 的内部实现是：
+     *     Map&lt;String, Object&gt; resultMap = new HashMap&lt;&gt;();
+     *     taskMethod.invoke(this, param, resultMap);   // 调 doPingTask(paramMap, resultMap)
+     *     return GsonUtils.toJson(resultMap);
+     * 最终返回：{"pingTime":1234567890123}
+     * </pre>
      *
      * @param wrapper  命中的处理方法包装器
      * @param paramMap 请求参数
@@ -221,6 +354,10 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             throw new IllegalStateException("GM 控制器缺少校验方法，无法处理请求: "
                     + wrapper.bean().getClass().getSimpleName() + "#" + wrapper.taskMethod().getName());
         }
+        // invoke(目标对象, 参数1, 参数2...)：
+        //   目标对象  —— checker 是实例方法，所以要传控制器实例
+        //   后两个参数 —— 依次对应 checker(Method taskMethod, Map param) 的形参
+        // 返回值强转 String：约定校验方法返回的就是 JSON 字符串
         return (String) wrapper.checkMethod().invoke(wrapper.bean(), wrapper.taskMethod(), paramMap);
     }
 
@@ -230,20 +367,39 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
      * <p>把异常信息与堆栈一并返回，便于后台页面直接看到出错原因。注意这会把内部细节
      * 暴露给调用方，仅适用于内网后台接口。</p>
      *
+     * <p>输出示例：</p>
+     * <pre>
+     * For input string: "abc" --- [{"className":"java.lang.NumberFormatException","methodName":"forInputString","lineNumber":65,...}]
+     * </pre>
+     *
      * @param e 处理过程中抛出的异常
      * @return 描述异常的 JSON 字符串
      */
     private String errorResult(Exception e) {
+        // 异常消息 + 堆栈 JSON，便于排查；e.getMessage() 可能为 null，此时响应以 "null --- " 开头
         return e.getMessage() + " --- " + GsonUtils.toJson(e.getStackTrace());
     }
 
     /**
      * 写回一个 JSON 响应并关闭连接。
      *
+     * <p>以 {@code result = "{\"pingTime\":1234567890123}"} 为例，最终发到客户端的是：</p>
+     * <pre>
+     * HTTP/1.1 200 OK
+     * content-type: application/json; charset=UTF-8
+     * access-control-allow-origin: *
+     * access-control-allow-headers: Origin, X-Requested-With, Content-Type, Accept
+     * access-control-allow-methods: GET, POST, PUT, DELETE
+     * content-length: 26
+     *
+     * {"pingTime":1234567890123}
+     * </pre>
+     *
      * @param ctx    通道上下文
      * @param result 响应体
      */
     private static void sendJson(ChannelHandlerContext ctx, String result) {
+        // 构造一个「完整」的 HTTP 响应：状态行 + 头 + 体一次性准备好
         FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
         // 显式用 UTF-8 编码：getBytes() 走平台默认字符集，在 GBK 环境下会把中文写坏
         response.content().writeBytes(result.getBytes(StandardCharsets.UTF_8));
@@ -256,13 +412,18 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
                 "Origin, X-Requested-With, Content-Type, Accept");
         response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, "GET, POST, PUT, DELETE");
 
+        // 必须设置 Content-Length：不设置的话客户端要靠连接关闭来判断响应结束，
+        // 且无法复用连接。readableBytes() 就是响应体的字节数（中文按 UTF-8 算 3 字节/字）
         HttpUtil.setContentLength(response, response.content().readableBytes());
-        // 写完即关：本接口不保持长连接
+        // writeAndFlush = 写入待发送队列 + 立即冲刷出去
+        // 挂 CLOSE 监听器：这条响应写完后关闭连接（本接口不保持长连接）
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        // 连接级异常（读写出错、协议异常等）会走到这里。
+        // 例：日志打出 "连接错误捕获:[3a6ee7b3]" 与 "错误信息:[IOException][Connection reset by peer]"
         log.info("netty http - 连接错误捕获:[{}]", ctx.channel().id().asShortText());
         log.info("netty http - 错误信息:[{}][{}]", cause.getClass().getSimpleName(), cause.getMessage());
         // 关闭出错的连接。原实现只把异常抛给后续处理器，连接不会被关闭
@@ -272,13 +433,25 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
     /**
      * 发送错误响应并关闭连接。
      *
+     * <p>响应体是纯文本而非 JSON——错误码本身已经表达了问题，不再额外包一层。
+     * 例：{@code sendError(ctx, NOT_FOUND)} 会让客户端收到：</p>
+     * <pre>
+     * HTTP/1.1 404 Not Found
+     * content-type: text/plain; charset=UTF-8
+     *
+     * Failure: 404 Not Found
+     * </pre>
+     *
      * @param ctx    通道上下文
      * @param status HTTP 状态码
      */
     private static void sendError(ChannelHandlerContext ctx, HttpResponseStatus status) {
+        // copiedBuffer 把字符串按 UTF-8 编成字节并复制一份（Netty 不持有传入的数组引用）
         FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status,
                 Unpooled.copiedBuffer("Failure: " + status + "\r\n", CharsetUtil.UTF_8));
+        // 设置头
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
+        // 关闭连接
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 
