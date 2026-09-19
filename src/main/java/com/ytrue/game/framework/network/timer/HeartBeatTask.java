@@ -73,7 +73,9 @@ public class HeartBeatTask {
                 // 这里只负责关连接，不再单独发布退出事件——关闭会触发 channelInactive，
                 // 由它作为「断连」的唯一事实来源统一发布。否则同一次掉线会发两遍事件，
                 // 业务监听器（如补登出时间、结算房间数据）就会被执行两次。
-                log.info("用户[{}]心跳超时，断开连接", user.getConnect());
+                // 带上用户 id 与连接标识：只记连接标识的话，排查时不知道掉线的是谁
+                // （此处 user 必定已登录——未登录的会话在上面的 isOnline 判断里被跳过了）
+                log.info("用户[{}]心跳超时，断开连接，连接:[{}]", user.getId(), user.getConnect());
                 ClientSender.closeClientConnect(user);
             }
         }

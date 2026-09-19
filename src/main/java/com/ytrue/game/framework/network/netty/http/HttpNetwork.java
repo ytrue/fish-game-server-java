@@ -59,9 +59,10 @@ public class HttpNetwork extends BaseNetwork {
         int workerSize = http.getWorkerSize();
 
         if (open(port, bossSize, workerSize)) {
-            log.info("Http服务启动成功~ port:[{}]", port);
+            // 措辞与 TcpNetwork / WebSocketNetwork 对齐，便于日志里扫一眼认出是哪个监听
+            log.info("Http网络服务启动成功~ port:[{}]", port);
         } else {
-            log.error("Http服务启动失败~ port:[{}]", port);
+            log.error("Http网络服务启动失败~ port:[{}]", port);
         }
     }
 
@@ -86,7 +87,7 @@ public class HttpNetwork extends BaseNetwork {
         // 调用方以为发出去了，实际对方永远收不到。必须留下可见的痕迹，否则这种
         // 「消息石沉大海」的问题极难排查。
         // 后台需要实时通知时应改用轮询，或另走 WebSocket 长连接。
-        log.warn("netty http - HTTP 不支持服务端主动推送，消息[{}]已被丢弃，连接:[{}]",
+        log.warn("HTTP 不支持服务端主动推送，消息[{}]已被丢弃，连接:[{}]",
                 Integer.toHexString(msgCode), connect);
     }
 
@@ -94,13 +95,13 @@ public class HttpNetwork extends BaseNetwork {
     public void closeClientConnect(Object connect) {
         // 同 removeClientChannel：正常路径下不会走到（getClientChannel 恒为 null，
         // 通用流程会提前返回），空操作无副作用，用 debug
-        log.debug("netty http - 收到关闭连接的请求，但 HTTP 不维护连接表，忽略:[{}]", connect);
+        log.debug("收到关闭连接的请求，但 HTTP 不维护连接表，忽略:[{}]", connect);
     }
 
     @Override
     protected void removeClientChannel(Object connect) {
         // 走到这里说明上层绕过了 getClientChannel 的判空直接调用——正常情况下不会发生。
         // 空操作无副作用，所以用 debug：平时不打印，出问题时开 debug 才能看到线索
-        log.debug("netty http - 收到移除连接的请求，但 HTTP 不维护连接表，忽略:[{}]", connect);
+        log.debug("收到移除连接的请求，但 HTTP 不维护连接表，忽略:[{}]", connect);
     }
 }

@@ -102,9 +102,14 @@ public class AppHandlerRegister implements BeanPostProcessor {
                 }
             }
 
-            // 判断是否注册过了，给个提示就好了
+            // 消息码重复：后注册的会覆盖先注册的。这通常是两个控制器用了同一个消息码，
+            // 或业务模块的控制器类名不同但注解值撞了——值得警告并把两边都打出来对照
             if (appHandlerWrapperMap.containsKey(handler.msgCode())) {
-                log.warn("App Handler already registered, overwrite: key={}, controller={}, method={}", handler.msgCode(), beanClass.getName(), taskMethod.getName());
+                AppHandlerWrapper old = appHandlerWrapperMap.get(handler.msgCode());
+                log.warn("客户端消息码重复，新注册的将覆盖旧的: 消息码[{}] 已注册[{}#{}] 新注册[{}#{}]",
+                        Integer.toHexString(handler.msgCode()),
+                        old.bean().getClass().getSimpleName(), old.taskMethod().getName(),
+                        beanClass.getSimpleName(), taskMethod.getName());
             }
 
             appHandlerWrapperMap.put(handler.msgCode(), new AppHandlerWrapper(bean, innerCheckMethod, taskMethod, handler.exp()));
@@ -143,9 +148,13 @@ public class AppHandlerRegister implements BeanPostProcessor {
                 key = "/" + key;
             }
 
-            // 判断是否注册过了，给个提示就好了
+            // 后台路径重复：后注册的会覆盖先注册的。把两边都打出来便于对照谁和谁撞了
             if (gmHandlerWrapperMap.containsKey(key)) {
-                log.warn("GM Handler already registered, overwrite: key={}, controller={}, method={}", key, beanClass.getName(), taskMethod.getName());
+                GmHandlerWrapper old = gmHandlerWrapperMap.get(key);
+                log.warn("后台路径重复，新注册的将覆盖旧的: 路径[{}] 已注册[{}#{}] 新注册[{}#{}]",
+                        key,
+                        old.bean().getClass().getSimpleName(), old.taskMethod().getName(),
+                        beanClass.getSimpleName(), taskMethod.getName());
             }
 
             gmHandlerWrapperMap.put(key, new GmHandlerWrapper(bean, checkMethod, taskMethod));

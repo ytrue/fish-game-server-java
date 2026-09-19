@@ -51,7 +51,9 @@ public class NetworkInit implements ApplicationRunner {
             // 逐个启动。bind 端口本身很快（毫秒级），不必像旧实现那样每个网络单开一个线程
             network.open();
         }
-        log.info("网络服务启动完毕");
+        // 只报总数、不宣称「全部成功」：INetwork.open() 不返回结果，
+        // 每个网络到底起没起来看上面对应的那行日志
+        log.info("网络服务启动流程结束（共 {} 个监听）", networks.size());
     }
 
     /**

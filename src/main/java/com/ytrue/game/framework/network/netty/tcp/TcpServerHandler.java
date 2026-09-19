@@ -90,7 +90,10 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
             // 发布退出事件：各业务模块清理自身数据，最后由 NetExitFinishListener 兜底回写数据库
             SpringEventPublisher.publish(new NetExitEvent(user));
         } else {
-            log.info("netty - 连接[{}]断开，但未找到对应会话（可能尚未完成登记）", channelId);
+            // 用 warn：正常断连一定找得到会话，找不到说明 channelActive 没跑完就被断，
+            // 或该连接已被其它路径清理过——两种情况都值得关注。
+            // 与 WebSocket 侧保持同一级别（同一件事不应在两个传输上表现不同）
+            log.warn("tcpServer - 连接[{}]断开，但未找到对应会话（可能尚未完成登记）", channelId);
         }
 
         // 从连接表移除，避免连接表随连接数增长而无限膨胀
@@ -227,8 +230,11 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         String channelId = getChannelId(ctx.channel());
-        log.warn("tcpServer -  - 连接错误捕获:[{}]", channelId);
-        log.warn("tcpServer -  - 错误信息:[{}][{}]", cause.getClass().getSimpleName(), cause.getMessage());
+        // 合并成一条：拆两条打容易被误读成两个独立问题。
+        // 用 warn 而非 error——多数情况是客户端半路断开，不是服务端的错。
+        // 堆栈不挂在这里：客户端正常断开也会走到这，挂堆栈会把日志淹掉
+        log.warn("tcpServer - 连接异常，已关闭:[{}] 原因: {}: {}",
+                channelId, cause.getClass().getSimpleName(), cause.getMessage());
 
         // 关闭出错的连接。关闭会触发 channelInactive，由它统一做连接表清理与退出事件，
         // 这里不再重复清理，避免同一连接被处理两次
@@ -253,7 +259,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
      */
     public void putClientChannel(String channelId, ChannelHandlerContext channel) {
         channelMap.put(channelId, channel);
-        log.debug("tcpServer -  - TcpSocket连接成功:[{}] 当前连接数量[{}]", channelId, channelMap.size());
+        log.debug("tcpServer - TcpSocket连接成功:[{}] 当前连接数量[{}]", channelId, channelMap.size());
     }
 
     /**
@@ -264,9 +270,14 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
     public void removeClientChannel(String channelId) {
         ChannelHandlerContext context = channelMap.remove(channelId);
         if (context == null) {
-            log.warn("tcpServer -  - TcpSocket移除失败，链接表不存在连接[{}], 当前连接数量[{}]", channelId, channelMap.size());
+            // 连接表中已没有这条连接——这是正常路径，不是异常：
+            // closeClientConnect 会先 channel.close() 再移除（第 1 次命中），
+            // 而 close() 触发的 channelInactive 又会移除一次（第 2 次落空）。
+            // 因此这里用 debug，否则每次关闭连接都会打出一条假的「移除失败」警告
+            log.debug("tcpServer - 连接[{}]已不在连接表中（可能已被清理），当前连接数量[{}]",
+                    channelId, channelMap.size());
         } else {
-            log.debug("tcpServer -  - TcpSocket断开并移除成功[{}] 当前连接数量[{}]", channelId, channelMap.size());
+            log.debug("tcpServer - TcpSocket断开并移除成功[{}] 当前连接数量[{}]", channelId, channelMap.size());
         }
     }
 

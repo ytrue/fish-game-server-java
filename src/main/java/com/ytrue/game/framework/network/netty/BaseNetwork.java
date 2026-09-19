@@ -139,8 +139,10 @@ public abstract class BaseNetwork implements INetwork {
                 bossGroup = null;
                 workerGroup = null;
             } catch (Exception e) {
-                // 关闭过程中的异常只记录，不向外抛（关闭流程要尽量走完）
-                log.info("关闭监听出错:[{}]", e.getMessage(), e);
+                // 关闭过程中的异常只记录、不向外抛（关闭流程要尽量走完）。
+                // 用 warn 而非 info：关网络失败意味着端口可能没释放，
+                // 不属于「正常流程」，用 info 会让人以为一切正常
+                log.warn("关闭监听出错:[{}]", e.getMessage(), e);
             }
         }
     }

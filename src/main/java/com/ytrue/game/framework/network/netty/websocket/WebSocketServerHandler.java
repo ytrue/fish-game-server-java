@@ -182,8 +182,11 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         String channelId = getChannelId(ctx.channel());
-        log.warn("webSocketServer - 连接错误捕获:[{}]", channelId);
-        log.warn("webSocketServer - 错误信息:[{}][{}]", cause.getClass().getSimpleName(), cause.getMessage());
+        // 合并成一条，与 TCP 侧保持一致：拆两条打容易被误读成两个独立问题。
+        // 用 warn 而非 error——多数情况是客户端半路断开，不是服务端的错；
+        // 堆栈也不挂在这里，否则客户端正常断开会把日志淹掉
+        log.warn("webSocketServer - 连接异常，已关闭:[{}] 原因: {}: {}",
+                channelId, cause.getClass().getSimpleName(), cause.getMessage());
 
         // 关闭出错的连接。关闭会触发 channelInactive，由它统一做连接表清理与退出事件
         ctx.close();
@@ -207,7 +210,7 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
      */
     public void putClientChannel(String channelId, ChannelHandlerContext channel) {
         channelMap.put(channelId, channel);
-        log.debug("webSocket - 连接成功:[{}] 当前连接数量[{}]", channelId, channelMap.size());
+        log.debug("webSocketServer - 连接成功:[{}] 当前连接数量[{}]", channelId, channelMap.size());
     }
 
     /**
@@ -218,9 +221,14 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
     public void removeClientChannel(String channelId) {
         ChannelHandlerContext context = channelMap.remove(channelId);
         if (context == null) {
-            log.warn("webSocket - 移除失败，链接表不存在连接[{}], 当前连接数量[{}]", channelId, channelMap.size());
+            // 连接表中已没有这条连接——正常路径，不是异常：
+            // closeClientConnect 先关闭再移除（第 1 次命中），
+            // 关闭触发的 channelInactive 又会移除一次（第 2 次落空）。
+            // 用 debug，否则每次关闭连接都会打出一条假的「移除失败」警告
+            log.debug("webSocketServer - 连接[{}]已不在连接表中（可能已被清理），当前连接数量[{}]",
+                    channelId, channelMap.size());
         } else {
-            log.debug("webSocket - 断开并移除成功[{}] 当前连接数量[{}]", channelId, channelMap.size());
+            log.debug("webSocketServer - 断开并移除成功[{}] 当前连接数量[{}]", channelId, channelMap.size());
         }
     }
 
