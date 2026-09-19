@@ -13,6 +13,7 @@ import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -251,20 +252,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
     private String handleGet(ChannelHandlerContext ctx, String routeKey, String queryStr,
                              String ip, String methodName) {
         // 按后台方法的签名约定，参数要打包成 Map 传进去（而不是按位置传参）
-        Map<String, Object> paramMap = new HashMap<>();
-        // 没有查询串（如 GET /ping）时 paramMap 保持为空，由业务方法自己校验必填项
-        if (!queryStr.isEmpty()) {
-            // 查询串形如 "pingTime=123&uid=100001"，先按 & 拆成一个个键值对
-            for (String kv : queryStr.split("&")) {
-                // 再按 = 拆成「参数名」与「参数值」
-                String[] kav = kv.split("=");
-                // 只接受完整的 key=value 两段形式；
-                // 残缺片段（如 "&&"、"=x" 这类）直接忽略，避免解析出无意义的键
-                if (kav.length == 2) {
-                    paramMap.put(kav[0], kav[1]);
-                }
-            }
-        }
+        Map<String, Object> paramMap = createParamMap(queryStr);
 
         // 拿归一化后的路由键查 GM 路由表。
         // 例："/ping" -> GmHandlerWrapper{
@@ -280,7 +268,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             // 说「接口」而不是「消息」：这里找不到的是 HTTP 路径，不是某条业务消息。
             // 用 warn 而非 info：GM 是内网接口，出现未注册路径说明前端调错了，
             // 或是有人在扫接口——两种情况都值得关注。带上方法与 IP 便于区分
-            log.warn("httpServer - 未注册的接口:[{} {}] from {}，已返回 404", methodName, routeKey, ip);
+            log.warn("httpServer - get未注册的接口:[{} {}] from {}，已返回 404", methodName, routeKey, ip);
             return null;
         }
 
@@ -296,6 +284,24 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
                     methodName, routeKey, ip, e.getMessage(), e);
             return errorResult(e);
         }
+    }
+
+    private static @NonNull Map<String, Object> createParamMap(String queryStr) {
+        Map<String, Object> paramMap = new HashMap<>();
+        // 没有查询串（如 GET /ping）时 paramMap 保持为空，由业务方法自己校验必填项
+        if (!queryStr.isEmpty()) {
+            // 查询串形如 "pingTime=123&uid=100001"，先按 & 拆成一个个键值对
+            for (String kv : queryStr.split("&")) {
+                // 再按 = 拆成「参数名」与「参数值」
+                String[] kav = kv.split("=");
+                // 只接受完整的 key=value 两段形式；
+                // 残缺片段（如 "&&"、"=x" 这类）直接忽略，避免解析出无意义的键
+                if (kav.length == 2) {
+                    paramMap.put(kav[0], kav[1]);
+                }
+            }
+        }
+        return paramMap;
     }
 
     /**
@@ -336,7 +342,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
         if (wrapper == null) {
             sendError(ctx, HttpResponseStatus.NOT_FOUND);
             // 与 GET 分支保持同样的级别与措辞，避免同一件事在两条路径上表现不一致
-            log.warn("httpServer - 未注册的接口:[{} {}] from {}，已返回 404", methodName, routeKey, ip);
+            log.warn("httpServer - post未注册的接口:[{} {}] from {}，已返回 404", methodName, routeKey, ip);
             return null;
         }
 
