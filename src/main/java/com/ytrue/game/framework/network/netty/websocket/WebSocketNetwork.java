@@ -28,7 +28,7 @@ import org.springframework.stereotype.Component;
  * @since 1.0.0
  */
 @Slf4j
-@Component(WebSocketNetwork.BEAN_NAME)
+//@Component(WebSocketNetwork.BEAN_NAME)
 @Qualifier("websocket")
 @RequiredArgsConstructor
 public class WebSocketNetwork extends BaseNetwork {
