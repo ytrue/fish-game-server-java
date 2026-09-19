@@ -4,6 +4,7 @@ import com.ytrue.game.framework.network.INetwork;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -31,7 +32,7 @@ import java.util.List;
  * @since 1.0.0
  */
 @Slf4j
-@Component
+//@Component
 @RequiredArgsConstructor
 public class NetworkInit implements ApplicationRunner {
 
@@ -44,7 +45,7 @@ public class NetworkInit implements ApplicationRunner {
     private final List<INetwork> networks;
 
     @Override
-    public void run(ApplicationArguments args) {
+    public void run(@NonNull ApplicationArguments args) {
         log.info("开始启动网络服务，共 {} 个监听", networks.size());
         for (INetwork network : networks) {
             // 逐个启动。bind 端口本身很快（毫秒级），不必像旧实现那样每个网络单开一个线程
