@@ -143,7 +143,7 @@ public abstract class BaseGameRoom {
 
             // 满了，没有位置了
             if (slot == -1) {
-                log.error("非随机座位位置已经满了,无法添加");
+                log.warn("玩家入座失败: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=false, reason=房间已满", code, logIdOf(gamePlayer));
                 return false;
             }
 
@@ -167,6 +167,7 @@ public abstract class BaseGameRoom {
                 gamePlayers[slot].setSeat(3);
             }
 
+            log.debug("玩家入座成功: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=false, slot={}", code, logIdOf(gamePlayer), slot);
             return true;
         }
 
@@ -193,7 +194,7 @@ public abstract class BaseGameRoom {
         //    人数上限大于 4 时会出现「槽位明明空着，但 0~3 四个座位号已占满」，
         //    这时不能放人进去（放进去必然和人重座），直接返回 null
         if (freeSeats.isEmpty()) {
-            log.error("随机座位位置已经满了,无法添加");
+            log.warn("玩家入座失败: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=true, reason=座位号已满", code, logIdOf(gamePlayer));
             return false;
         }
 
@@ -220,6 +221,7 @@ public abstract class BaseGameRoom {
             // 走不到这里：上面的 isEmpty 判断已经保证至少有一个空闲座位号
             gamePlayers[slot].setSeat(0);
         }
+        log.debug("玩家入座成功: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=true, slot={}", code, logIdOf(gamePlayer), slot);
         return true;
     }
 
@@ -239,10 +241,8 @@ public abstract class BaseGameRoom {
             //          现在 C 入座（不随机）
             //          期望结果：C 落在 槽位2，座位号也是 2
             // ① 从下标 0 往上扫，碰到第一个空槽位就放进去
-            boolean isFind = false;
             for (int i = 0; i < gamePlayers.length; i++) {
                 if (gamePlayers[i] == null) {
-                    isFind = true;
                     // ② 放进这个空槽位
                     //    例：i=0 是 A、i=1 是 B，都不是空位，跳过
                     //        i=2 是空位  ->  gamePlayers[2] = C
@@ -253,15 +253,13 @@ public abstract class BaseGameRoom {
                     //    例：C.setSeat(2)
                     gamePlayers[i].setSeat(i);
 
-                    // ④ 放好就停。不能继续往后放，否则同一个人会占掉后面所有空槽位
-                    //    例：i=3 不再处理
-                    break;
+                    log.debug("玩家入座成功: room={}, player={}, strategy=SEAT_INDEX, random=false, slot={}", code, logIdOf(gamePlayer), i);
+
+                    return true;
                 }
             }
-            if (!isFind) {
-                log.error("位置满了，无法加入");
-            }
-            return isFind;
+            log.warn("玩家入座失败: room={}, player={}, strategy=SEAT_INDEX, random=false, reason=房间已满", code, logIdOf(gamePlayer));
+            return false;
 
         }
         // ========== 随机：先收集所有空槽位，再随机挑一个 ==========
@@ -283,23 +281,26 @@ public abstract class BaseGameRoom {
         //    注意这里判的是「空槽位」就够了——本策略座位号就是槽位，
         //    不存在「槽位空着但座位号不够用」的情况，不必像策略一那样另外维护座位号集合
         //    例：freeSlots = [0,2,3] 非空，继续往下
-        if (!freeSlots.isEmpty()) {
-            // ③ 从清单里随机挑一个空槽位
-            //    例：freeSlots = [0,2,3]，nextInt(3) 抽到下标 1  ->  slot = 2
-            Integer slot = freeSlots.get(ThreadLocalRandom.current().nextInt(freeSlots.size()));
-
-            // ④ 放进抽到的槽位
-            //    例：gamePlayers[2] = B
-            gamePlayers[slot] = gamePlayer;
-
-            // ⑤ 座位号 = 下标。随机入座也不会错开——这是策略二的标志性特征
-            //    例：B.setSeat(2)，最终 B：槽位2 / 座位2
-            gamePlayers[slot].setSeat(slot);
-
-            return true;
+        if (freeSlots.isEmpty()) {
+            log.warn("玩家入座失败: room={}, player={}, strategy=SEAT_INDEX, random=true, reason=房间已满", code, logIdOf(gamePlayer));
+            return false;
         }
 
-        return false;
+
+        // ③ 从清单里随机挑一个空槽位
+        //    例：freeSlots = [0,2,3]，nextInt(3) 抽到下标 1  ->  slot = 2
+        Integer slot = freeSlots.get(ThreadLocalRandom.current().nextInt(freeSlots.size()));
+
+        // ④ 放进抽到的槽位
+        //    例：gamePlayers[2] = B
+        gamePlayers[slot] = gamePlayer;
+
+        // ⑤ 座位号 = 下标。随机入座也不会错开——这是策略二的标志性特征
+        //    例：B.setSeat(2)，最终 B：槽位2 / 座位2
+        gamePlayers[slot].setSeat(slot);
+        log.debug("玩家入座成功: room={}, player={}, strategy=SEAT_INDEX, random=true, slot={}", code, logIdOf(gamePlayer), slot);
+        return true;
+
     }
 
 
@@ -385,6 +386,10 @@ public abstract class BaseGameRoom {
         return size;
     }
 
+
+    private long logIdOf(BaseGamePlayer gamePlayer) {
+        return gamePlayer == null || gamePlayer.getUser() == null ? -1L : gamePlayer.getId();
+    }
 
     /**
      * 获取玩法编号。
