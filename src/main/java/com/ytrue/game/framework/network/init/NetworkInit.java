@@ -32,7 +32,7 @@ import java.util.List;
  * @since 1.0.0
  */
 @Slf4j
-//@Component
+@Component
 @RequiredArgsConstructor
 public class NetworkInit implements ApplicationRunner {
 

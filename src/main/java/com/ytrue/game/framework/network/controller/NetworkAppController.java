@@ -77,9 +77,8 @@ public class NetworkAppController {
     @AppHandler(msgCode = NetworkMsgCode.C_S_PING_REQUEST_VALUE)
     public void doPingTask(PingRequest msg, ServerUser user) {
         // 原样回传时间戳，不做任何加工——往返延迟要由客户端自己算才准确
-        PingResponse response = PingResponse.newBuilder()
-                .setPingTime(msg.getPingTime())
-                .build();
+        PingResponse response = PingResponse.newBuilder().setPingTime(msg.getPingTime()).build();
+        // 返回
         ClientSender.sendMessage(NetworkMsgCode.S_C_PING_RESPONSE_VALUE, response, user);
     }
 

@@ -21,6 +21,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * HTTP 请求处理器（后台 GM 接口）。
@@ -109,6 +110,15 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
     private final AppHandlerRegister register;
 
     /**
+     * 浏览器 / 爬虫会自动请求、但与业务无关的路径。
+     *
+     * <p>用任何浏览器打开后台地址，它都会顺带请求 {@code /favicon.ico}；
+     * 爬虫会请求 {@code /robots.txt}。这类请求落到 GM 接口上，只会产生
+     * 「未注册的接口」告警，把真正的路径错误淹掉，所以单独识别、静默处理。</p>
+     */
+    private static final Set<String> IGNORED_PATHS = Set.of("/favicon.ico", "/robots.txt");
+
+    /**
      * 处理一次完整的 HTTP 请求。
      *
      * <p>以 {@code GET /ping?pingTime=1234567890123 HTTP/1.1} 为例，各步骤变量的值：</p>
@@ -173,7 +183,16 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             path = path.substring(0, path.length() - 1);
         }
 
-        // ④ 按请求方法分派。注意用 equals 而不是 ==：
+        // ④ 浏览器 / 爬虫的自动请求：静默处理掉再返回。
+        //    不这么做的话，每次用浏览器打开后台地址都会多出一条「未注册的接口」告警，
+        //    真正的路径错误反而被淹没。回 204（无内容）并只在 debug 级别留痕
+        if (IGNORED_PATHS.contains(path)) {
+            sendNoContent(ctx);
+            log.debug("GM - 忽略浏览器自动请求:[{} {}] from {}", msg.method().name(), path, ip);
+            return;
+        }
+
+        // ⑤ 按请求方法分派。注意用 equals 而不是 ==：
         //    HttpMethod 的常量是单例，但客户端传来的 method() 可能是新构造的实例，
         //    用 == 会漏判
         // 请求方法名仅用于日志：GET /ping 与 POST /ping 走的是同一个处理方法，
@@ -195,7 +214,7 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             return;
         }
 
-        // ⑤ 写出响应。result 为 null 说明处理过程已经自行发过响应（如 404），无需再写
+        // ⑥ 写出响应。result 为 null 说明处理过程已经自行发过响应（如 404），无需再写
         if (result != null) {
             sendJson(ctx, result);
         }
@@ -499,6 +518,19 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
             return isa.getAddress().getHostAddress();
         }
         return "unknown";
+    }
+
+    /**
+     * 回一个 204（无内容）并关闭连接。
+     *
+     * <p>用于浏览器 / 爬虫的自动请求：明确告诉对方「没什么可给你的」，
+     * 又不当作错误——比 404 更贴合语义，也能避免对方重试。</p>
+     *
+     * @param ctx 通道上下文
+     */
+    private static void sendNoContent(ChannelHandlerContext ctx) {
+        ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.NO_CONTENT))
+                .addListener(ChannelFutureListener.CLOSE);
     }
 
     /**

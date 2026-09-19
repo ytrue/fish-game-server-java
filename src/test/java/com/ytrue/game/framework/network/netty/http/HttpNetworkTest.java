@@ -87,6 +87,18 @@ public class HttpNetworkTest {
         HttpResponse<String> r3 = get(client, base + "/not-exist");
         check("状态码为 404", r3.statusCode(), 404);
 
+        section("5.1 浏览器 / 爬虫的自动请求（应静默处理，不当作错误）");
+        // 用浏览器打开后台地址时它一定会请求 /favicon.ico，爬虫会请求 /robots.txt。
+        // 这类请求回 204 且不产生「未注册的接口」告警，否则会把真正的路径错误淹掉
+        HttpResponse<String> favicon = get(client, base + "/favicon.ico");
+        check("favicon.ico 返回 204", favicon.statusCode(), 204);
+        check("  无响应体", favicon.body(), "");
+        HttpResponse<String> robots = get(client, base + "/robots.txt");
+        check("robots.txt 返回 204", robots.statusCode(), 204);
+        // 对照：真正的未知路径依然要是 404，不能被一起放过
+        HttpResponse<String> realMiss = get(client, base + "/not-exist-2");
+        check("  对照：真实未知路径仍为 404", realMiss.statusCode(), 404);
+
         section("6. POST 带 JSON 请求体");
         HttpResponse<String> r4 = post(client, base + "/ping", "{\"pingTime\":9876543210}");
         check("状态码", r4.statusCode(), 200);

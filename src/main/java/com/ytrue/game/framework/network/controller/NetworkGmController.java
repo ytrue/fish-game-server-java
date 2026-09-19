@@ -21,7 +21,7 @@ import java.util.Map;
  *
  * @since 1.0.0
  */
-@GmController(checkMethod = "checker")
+@GmController
 public class NetworkGmController {
 
     /**
@@ -57,8 +57,7 @@ public class NetworkGmController {
      */
     @GmHandler(key = "/ping")
     public void doPingTask(Map<String, Object> param, Map<String, Object> resultMap) throws Exception {
-        resultMap.put("pingTime",
-                JsonMapUtils.parseObject(param, "pingTime", JsonMapUtils.JsonInnerType.TYPE_LONG));
+        resultMap.put("pingTime", JsonMapUtils.parseObject(param, "pingTime", JsonMapUtils.JsonInnerType.TYPE_LONG));
     }
 
 }
