@@ -333,14 +333,9 @@ public class GameContainer {
 
                 // 插入map
                 playerIdMap.put(user.getId(), gamePlayer);
-                // 已登录用户才回写数据库：未登录时没有实体，且写入的 id 是 0 会污染其它记录
-                if (user.isOnline() && user.getEntity() != null) {
-                    // onlineState = 玩法编号，表示「正在玩哪个游戏」
-                    user.getEntity().setOnlineState(gameRoom.getGameId());
-                    // 旧工程写的是 userMapper.update(entity)，该单参重载在 MyBatis-Plus 3.5.7+ 已被移除，
-                    // 对应的替代就是 updateById（同样是「按主键更新、跳过 null 字段」）
-                    userMapper.updateById(user.getEntity());
-                }
+                // 回写「正在玩哪个游戏」。此时玩家已经真的坐进来了，内存是事实，
+                // DB 写失败只记日志，不影响本方法的返回值
+                updateOnlineState(user, gameRoom.getGameId());
 
                 log.debug("创建玩家成功: room={}, player={}, slot={}, onlineState={}", gameRoom.getCode(), user.getId(), gamePlayer.getSeat(), gameRoom.getGameId());
                 return gamePlayer;
@@ -376,13 +371,15 @@ public class GameContainer {
                 T gamePlayer = gameRoom.getGamePlayerBySeat(seat);
                 gameRoom.getGamePlayers()[seat] = null;
                 if (gamePlayer != null) {
-                    playerIdMap.remove(gamePlayer.getId());
                     ServerUser user = gamePlayer.getUser();
-                    // 回到大厅，onlineState 复位为 1（1 = 在线但不在游戏中）
-                    if (user != null && user.isOnline() && user.getEntity() != null) {
-                        user.getEntity().setOnlineState(1);
-                        userMapper.updateById(user.getEntity());
+                    // user 可能为 null（手工塞进数组的玩家），而 getId() 内部直接解引用它。
+                    // playerIdMap.remove 必须排在判空【之后】——否则 NPE 会让下面那个 return 被跳过，
+                    // 人已经从数组里删掉了，调用方却收到 null
+                    if (user != null) {
+                        playerIdMap.remove(gamePlayer.getId());
                     }
+                    // 回到大厅，onlineState 复位为 1（1 = 在线但不在游戏中）
+                    updateOnlineState(user, 1);
                 }
                 return gamePlayer;
             }
@@ -422,10 +419,9 @@ public class GameContainer {
                 // 先按 id 找出他所在的槽位
                 int slot = -1;
                 for (int i = 0; i < gameRoom.getGamePlayers().length; i++) {
-                    // 按照顺序获取
                     BaseGamePlayer player = gameRoom.getGamePlayers()[i];
-                    // 不为空，用户id 等于玩家id，说明找到了，跳出去
-                    if (player != null && player.getUser() != null && player.getUser().getId() == playerId) {
+                    // 用户 id 等于玩家 id，找到了
+                    if (player != null && player.getUser() != null && player.getId() == playerId) {
                         slot = i;
                         break;
                     }
@@ -496,6 +492,43 @@ public class GameContainer {
     public static <T extends BaseGameRoom> T getGameRoomByPlayerId(long id) {
         BaseGamePlayer gamePlayer = getPlayerById(id);
         return (T) (gamePlayer == null ? null : roomCodeMap.get(gamePlayer.getRoomCode()));
+    }
+
+    // ==================== 内部 ====================
+
+    /**
+     * 回写用户的 {@code onlineState}。
+     *
+     * <p><b>本方法永不抛异常，这是刻意的。</b></p>
+     *
+     * <p>它只是内存状态的一次「尽力回写」——调用它的地方，玩家已经<b>真的</b>入座或退出了，
+     * 内存才是事实。DB 写不进去（连接池耗尽、抖动、超时、死锁重试）不该把整个操作判成失败：
+     * 一旦异常冒到外层 catch，方法会返回 {@code null}，调用方以为操作没成功，
+     * 而内存早已改完——两边就此不一致。表现出来就是「玩家卡在『加入失败』界面，
+     * 服务端却认为他坐好了，他收不到房间消息也不会被踢，直到心跳超时」。</p>
+     *
+     * <p>顺带把判空也收在这里：{@code user} 为空、未登录、没有实体时直接跳过，
+     * 免得每个调用点各写一遍还写漏。三种情况都不该写库——未登录用户没有实体，
+     * 而 {@code onlineState} 是写在实体上的。</p>
+     *
+     * @param user        用户会话；为 {@code null}、未登录或没有实体时直接跳过
+     * @param onlineState 要写入的状态值（玩法编号表示在游戏中，1 表示回到大厅）
+     */
+    private static void updateOnlineState(ServerUser user, int onlineState) {
+        if (user == null || !user.isOnline() || user.getEntity() == null) {
+            return;
+        }
+        try {
+            user.getEntity().setOnlineState(onlineState);
+            // 旧工程写的是 userMapper.update(entity)，该单参重载在 MyBatis-Plus 3.5.7+ 已被移除，
+            // 对应的替代就是 updateById（同样是「按主键更新、跳过 null 字段」）
+            userMapper.updateById(user.getEntity());
+        } catch (Exception e) {
+            // user.getId() 在日志里是安全的：ServerUser#getId 内部是
+            // `entity == null ? 0 : entity.getId()`，不会 NPE
+            log.error("回写 onlineState 失败: player={}, onlineState={}, error={}",
+                    user.getId(), onlineState, e.getMessage(), e);
+        }
     }
 
 }
