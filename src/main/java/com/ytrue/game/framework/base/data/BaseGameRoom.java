@@ -48,7 +48,6 @@ public abstract class BaseGameRoom {
      * 它与 {@link #maxSize}（房间能装多少人）<b>是两回事</b>：策略一靠它来分配座位号，
      * 所以人数上限超过它的玩法会出现「槽位还有空的、座位号却已经用完了」。</p>
      *
-     * <p>旧工程把 0~3 写死在方法里，这里提成了常量，改的时候只改这一处。</p>
      */
     private static final int MAX_SEAT_NUMBER = 4;
 
@@ -365,7 +364,7 @@ public abstract class BaseGameRoom {
      * @return 该槽位上的玩家；空座返回 {@code null}
      */
     @SuppressWarnings("unchecked")
-    public <T extends BaseGamePlayer> T getGamePlayerBySeats(int index) {
+    public <T extends BaseGamePlayer> T getGamePlayerBySeat(int index) {
         return (T) gamePlayers[index];
     }
 
