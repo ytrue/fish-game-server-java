@@ -18,10 +18,10 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ----------------------------
--- Table structure for tbl_fruit_laba_reward_info
+-- Table structure for fruit_laba_reward_info
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_fruit_laba_reward_info`;
-CREATE TABLE `tbl_fruit_laba_reward_info`  (
+DROP TABLE IF EXISTS `fruit_laba_reward_info`;
+CREATE TABLE `fruit_laba_reward_info`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '奖励id',
   `create_time` timestamp(0) NULL DEFAULT CURRENT_TIMESTAMP(0) COMMENT '创建时间',
   `user_id` bigint(20) NULL DEFAULT NULL COMMENT '用户id',
@@ -33,10 +33,10 @@ CREATE TABLE `tbl_fruit_laba_reward_info`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_app_rate_form
+-- Table structure for app_rate_form
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_app_rate_form`;
-CREATE TABLE `tbl_app_rate_form`  (
+DROP TABLE IF EXISTS `app_rate_form`;
+CREATE TABLE `app_rate_form`  (
   `id` bigint(10) NOT NULL AUTO_INCREMENT,
   `day_time` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `rate` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '0.00' COMMENT '付费率',
@@ -54,10 +54,10 @@ CREATE TABLE `tbl_app_rate_form`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 96 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_app_report_form
+-- Table structure for app_report_form
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_app_report_form`;
-CREATE TABLE `tbl_app_report_form`  (
+DROP TABLE IF EXISTS `app_report_form`;
+CREATE TABLE `app_report_form`  (
   `id` bigint(10) NOT NULL AUTO_INCREMENT,
   `day_time` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `day1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '0.00',
@@ -96,10 +96,10 @@ CREATE TABLE `tbl_app_report_form`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 899 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_app_user
+-- Table structure for app_user
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_app_user`;
-CREATE TABLE `tbl_app_user`  (
+DROP TABLE IF EXISTS `app_user`;
+CREATE TABLE `app_user`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '用户id',
   `create_time` timestamp(0) NULL DEFAULT CURRENT_TIMESTAMP(0) COMMENT '注册时间',
   `username` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '用户名',
@@ -120,10 +120,10 @@ CREATE TABLE `tbl_app_user`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 183040 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_app_user_authentication
+-- Table structure for app_user_authentication
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_app_user_authentication`;
-CREATE TABLE `tbl_app_user_authentication`  (
+DROP TABLE IF EXISTS `app_user_authentication`;
+CREATE TABLE `app_user_authentication`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '认证id',
   `create_time` timestamp(0) NULL DEFAULT CURRENT_TIMESTAMP(0) COMMENT '认证时间',
   `user_id` bigint(20) NOT NULL COMMENT '用户id',
@@ -134,10 +134,10 @@ CREATE TABLE `tbl_app_user_authentication`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 100003 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_app_wander_subtitle
+-- Table structure for app_wander_subtitle
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_app_wander_subtitle`;
-CREATE TABLE `tbl_app_wander_subtitle`  (
+DROP TABLE IF EXISTS `app_wander_subtitle`;
+CREATE TABLE `app_wander_subtitle`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '游走字幕id',
   `create_time` timestamp(0) NULL DEFAULT CURRENT_TIMESTAMP(0) COMMENT '创建时间',
   `content` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '字幕内容',
@@ -148,10 +148,10 @@ CREATE TABLE `tbl_app_wander_subtitle`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 100005 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_osee_cdk
+-- Table structure for osee_cdk
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_osee_cdk`;
-CREATE TABLE `tbl_osee_cdk`  (
+DROP TABLE IF EXISTS `osee_cdk`;
+CREATE TABLE `osee_cdk`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'cdk id',
   `create_time` timestamp(0) NULL DEFAULT CURRENT_TIMESTAMP(0) COMMENT '创建时间',
   `cdkey` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'cdkey内容',
@@ -163,10 +163,10 @@ CREATE TABLE `tbl_osee_cdk`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_osee_cdk_type
+-- Table structure for osee_cdk_type
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_osee_cdk_type`;
-CREATE TABLE `tbl_osee_cdk_type`  (
+DROP TABLE IF EXISTS `osee_cdk_type`;
+CREATE TABLE `osee_cdk_type`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '类型id',
   `create_time` timestamp(0) NULL DEFAULT CURRENT_TIMESTAMP(0) COMMENT '创建时间',
   `name` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '类型名',
@@ -175,10 +175,10 @@ CREATE TABLE `tbl_osee_cdk_type`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_osee_lottery_shop
+-- Table structure for osee_lottery_shop
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_osee_lottery_shop`;
-CREATE TABLE `tbl_osee_lottery_shop`  (
+DROP TABLE IF EXISTS `osee_lottery_shop`;
+CREATE TABLE `osee_lottery_shop`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '类型id',
   `create_time` timestamp(0) NULL DEFAULT CURRENT_TIMESTAMP(0) COMMENT '创建时间',
   `index` int(11) NULL DEFAULT NULL COMMENT '序号',
@@ -196,10 +196,10 @@ CREATE TABLE `tbl_osee_lottery_shop`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 100011 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_osee_lottery_shop_stock
+-- Table structure for osee_lottery_shop_stock
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_osee_lottery_shop_stock`;
-CREATE TABLE `tbl_osee_lottery_shop_stock`  (
+DROP TABLE IF EXISTS `osee_lottery_shop_stock`;
+CREATE TABLE `osee_lottery_shop_stock`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'ID',
   `shop_id` bigint(20) NOT NULL COMMENT '道具库存属于的商品ID',
   `user_id` bigint(20) NULL DEFAULT NULL COMMENT '兑换该卡的玩家ID',
@@ -210,10 +210,10 @@ CREATE TABLE `tbl_osee_lottery_shop_stock`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_osee_notice
+-- Table structure for osee_notice
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_osee_notice`;
-CREATE TABLE `tbl_osee_notice`  (
+DROP TABLE IF EXISTS `osee_notice`;
+CREATE TABLE `osee_notice`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '类型id',
   `create_time` timestamp(0) NULL DEFAULT CURRENT_TIMESTAMP(0) COMMENT '创建时间',
   `index` int(11) NULL DEFAULT NULL COMMENT '序号',
@@ -225,10 +225,10 @@ CREATE TABLE `tbl_osee_notice`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_osee_player
+-- Table structure for osee_player
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_osee_player`;
-CREATE TABLE `tbl_osee_player`  (
+DROP TABLE IF EXISTS `osee_player`;
+CREATE TABLE `osee_player`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '玩家id',
   `create_time` timestamp(0) NULL DEFAULT CURRENT_TIMESTAMP(0) COMMENT '创建时间',
   `user_id` bigint(20) NULL DEFAULT NULL COMMENT '用户id',
@@ -266,10 +266,10 @@ CREATE TABLE `tbl_osee_player`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 194537 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_shopping
+-- Table structure for shopping
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_shopping`;
-CREATE TABLE `tbl_shopping`  (
+DROP TABLE IF EXISTS `shopping`;
+CREATE TABLE `shopping`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'id',
   `create_time` timestamp(0) NULL DEFAULT CURRENT_TIMESTAMP(0) COMMENT '创建时间',
   `player_id` bigint(20) NULL DEFAULT NULL COMMENT '用户id',
@@ -281,10 +281,10 @@ CREATE TABLE `tbl_shopping`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 100109 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_ttmy_address
+-- Table structure for ttmy_address
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_ttmy_address`;
-CREATE TABLE `tbl_ttmy_address`  (
+DROP TABLE IF EXISTS `ttmy_address`;
+CREATE TABLE `ttmy_address`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'ID',
   `player_id` bigint(20) NOT NULL COMMENT '玩家ID',
   `name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '玩家昵称',
@@ -295,10 +295,10 @@ CREATE TABLE `tbl_ttmy_address`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_ttmy_agent
+-- Table structure for ttmy_agent
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_ttmy_agent`;
-CREATE TABLE `tbl_ttmy_agent`  (
+DROP TABLE IF EXISTS `ttmy_agent`;
+CREATE TABLE `ttmy_agent`  (
   `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'ID',
   `player_id` bigint(20) NOT NULL COMMENT '玩家ID',
   `player_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '玩家昵称',
@@ -326,10 +326,10 @@ CREATE TABLE `tbl_ttmy_agent`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 100651 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for tbl_ttmy_message
+-- Table structure for ttmy_message
 -- ----------------------------
-DROP TABLE IF EXISTS `tbl_ttmy_message`;
-CREATE TABLE `tbl_ttmy_message`  (
+DROP TABLE IF EXISTS `ttmy_message`;
+CREATE TABLE `ttmy_message`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'ID',
   `title` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '标题',
   `content` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '内容',

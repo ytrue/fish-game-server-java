@@ -5,12 +5,7 @@ import com.ytrue.game.framework.engine.data.NetworkMsgType;
 import com.ytrue.game.framework.network.INetwork;
 import com.ytrue.game.framework.network.proto.AppMessage.BaseMessage;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.IoHandlerFactory;
-import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.extern.slf4j.Slf4j;
@@ -121,31 +116,32 @@ public abstract class BaseNetwork implements INetwork {
     @Override
     public void close() {
         // 只有启动过才需要关闭
-        if (serverChannel != null) {
-            try {
-                // 关闭服务端通道并等待关闭完成。
-                // closeFuture().sync()
-                //    = 等别人把 Channel 关掉
-                //close().sync()
-                //    = 我现在就把 Channel 关掉，然后等关闭完成
-                serverChannel.close().sync();
-                // 优雅关闭 boss 线程池，等待其中任务结束
-                bossGroup.shutdownGracefully().sync();
-                // 优雅关闭 worker 线程池，等待其中任务结束
-                workerGroup.shutdownGracefully().sync();
 
+        try {
+            // 关闭服务端通道并等待关闭完成。
+            // closeFuture().sync()
+            //    = 等别人把 Channel 关掉
+            //close().sync()
+            //    = 我现在就把 Channel 关掉，然后等关闭完成
+            if (serverChannel != null) {
+                serverChannel.close().sync();
                 // 置空引用，使 open() 可以再次启动
                 serverChannel = null;
-                bossGroup = null;
-                workerGroup = null;
-            } catch (Exception e) {
-                // 关闭过程中的异常只记录、不向外抛（关闭流程要尽量走完）。
-                // 用 warn 而非 info：关网络失败意味着端口可能没释放，
-                // 不属于「正常流程」，用 info 会让人以为一切正常
-                log.warn("关闭监听出错:[{}]", e.getMessage(), e);
             }
+            // 优雅关闭 boss 线程池，等待其中任务结束
+            bossGroup.shutdownGracefully().sync();
+            // 优雅关闭 worker 线程池，等待其中任务结束
+            workerGroup.shutdownGracefully().sync();
+            bossGroup = null;
+            workerGroup = null;
+        } catch (Exception e) {
+            // 关闭过程中的异常只记录、不向外抛（关闭流程要尽量走完）。
+            // 用 warn 而非 info：关网络失败意味着端口可能没释放，
+            // 不属于「正常流程」，用 info 会让人以为一切正常
+            log.warn("关闭监听出错:[{}]", e.getMessage(), e);
         }
     }
+
 
     @Override
     public void sendMessageToClient(int msgCode, Message msg, Object connect, NetworkMsgType msgType) {
@@ -186,8 +182,7 @@ public abstract class BaseNetwork implements INetwork {
             // 取出通道上下文
             ChannelHandlerContext channel = getClientChannel(connect);
             // 通道还在才能拿到对端地址
-            if (channel != null) {
-                // remoteAddress() 返回对端地址（InetSocketAddress），取出 IP 的字符串形式
+            if (channel != null && channel.channel().remoteAddress() == null) {
                 return ((InetSocketAddress) channel.channel().remoteAddress()).getAddress().getHostAddress();
             }
         }

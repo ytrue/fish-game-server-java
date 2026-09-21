@@ -53,18 +53,18 @@ public abstract class BaseFishingManager {
      * 永久停摆，因此这里必须把异常吞掉、保证周期任务持续运行。</p>
      */
     protected void doFishingRoomTask() {
-        try {
-            for (BaseGameRoom gameRoom : GameContainer.getGameRooms()) {
+        for (BaseGameRoom gameRoom : GameContainer.getGameRooms()) {
+            try {
                 // 房间里混着各种玩法，只挑捕鱼的出来处理
                 if (gameRoom instanceof BaseFishingRoom fishingRoom) {
                     // 先走一格房间时钟，子类处理时读到的就是当前帧
                     fishingRoom.addRoomTick();
                     onFishingRoomTick(fishingRoom);
                 }
+            } catch (Exception e) {
+                // 格式说明：末尾那个 e 必须「多出来」才能被 SLF4J 识别为异常、打印堆栈
+                log.error("执行捕鱼房间循环任务时出现异常:[{}]", e.getMessage(), e);
             }
-        } catch (Exception e) {
-            // 格式说明：末尾那个 e 必须「多出来」才能被 SLF4J 识别为异常、打印堆栈
-            log.error("执行捕鱼房间循环任务时出现异常:[{}]", e.getMessage(), e);
         }
     }
 
