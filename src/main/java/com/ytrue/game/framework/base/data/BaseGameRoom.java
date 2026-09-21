@@ -41,8 +41,16 @@ public abstract class BaseGameRoom {
     private int maxSize;
 
 
-    // 最大房间数
-    private final int maxSeatNumber = 4;
+    /**
+     * 座位号个数。
+     *
+     * <p>决定了「一张桌子上最多能有几个座位号」——当前是 0~3 共 4 个。
+     * 它与 {@link #maxSize}（房间能装多少人）<b>是两回事</b>：策略一靠它来分配座位号，
+     * 所以人数上限超过它的玩法会出现「槽位还有空的、座位号却已经用完了」。</p>
+     *
+     * <p>旧工程把 0~3 写死在方法里，这里提成了常量，改的时候只改这一处。</p>
+     */
+    private static final int MAX_SEAT_NUMBER = 4;
 
     /**
      * 房间玩家列表
@@ -58,14 +66,14 @@ public abstract class BaseGameRoom {
      * 想换一种座位号算法，子类覆写本方法即可（房卡场就是这么做的）：</p>
      * <pre>
      *   // 房卡场：座位号必须等于数组下标
-     *   public BaseGamePlayer addPlayer(BaseGamePlayer p, boolean randomSeat) {
+     *   public boolean addPlayer(BaseGamePlayer p, boolean randomSeat) {
      *       return addPlayerWithSeatIndex(p, randomSeat);
      *   }
      * </pre>
      *
      * @param gamePlayer 待加入的玩家
      * @param randomSeat 是否随机座位
-     * @return 加入成功返回该玩家；无空位返回 {@code null}
+     * @return 入座成功 {@code true}；房间没位置 {@code false}
      * @see #addPlayerWithFreeSeatNumber(BaseGamePlayer, boolean)
      * @see #addPlayerWithSeatIndex(BaseGamePlayer, boolean)
      */
@@ -82,83 +90,89 @@ public abstract class BaseGameRoom {
      *   座位号 seat  —— player.getSeat()，真正的座次，发给客户端决定谁坐屏幕哪个方位
      * </pre>
      *
-     * <p>本策略把这两件事<b>分开算</b>：槽位取第一个空位，座位号取 0~3 里最小的空闲号。
-     * 目的是「桌上座次稳定」——有人走了，新人补进他空出来的那个座位号，其余人座次不动。
-     * 代价是两个值可能错开；要保证相等请用 {@link #addPlayerWithSeatIndex}。</p>
+     * <p>本策略把这两件事<b>分开算</b>：槽位取第一个空位，座位号取 {@link #MAX_SEAT_NUMBER}
+     * 个号（0~3）里最小的空闲号。目的是「桌上座次稳定」——有人走了，新人补进他空出来的那个座位号，
+     * 其余人座次不动。代价是两个值可能错开；要保证相等请用 {@link #addPlayerWithSeatIndex}。</p>
      *
-     * <p>预置 0~3 四个座位号是旧工程留下的硬编码，隐含「房间最多 4 人」，
-     * 人数上限超过 4 的玩法不能用本策略。另外只要项目里有任何一处把「数组下标」当「座位号」用
+     * <p><b>座位号个数由 {@link #MAX_SEAT_NUMBER} 决定，与 {@link #maxSize} 无关</b>，
+     * 所以人数上限超过它的玩法会出现「槽位还有空的、座位号却已经用完了」——
+     * 那时后面的玩家入座会失败（返回 {@code false}），而不是像旧工程那样硬塞一个 3 号和人重座。
+     * 二八杠（{@code createGameRoom(TwoEightRoom.class, 100)}）正踩在这个上限上，
+     * 想让 100 人都坐进来，得改用策略二。</p>
+     *
+     * <p>同理，只要项目里有任何一处把「数组下标」当「座位号」用
      * （例如 {@code BaseGobangManager.changeNextPlayer} 的轮转落子），也必须改用策略二。</p>
      *
-     * <p><b>已知缺陷（保持旧行为，未修复）</b>：4 人房坐满时找不到空槽位，{@code slot} 保持 -1，
-     * 抛 {@code ArrayIndexOutOfBoundsException}（由 {@code GameContainer} 的 catch 兜住）。
-     * 具体走位、错开的过程，见方法体内的逐行注释与示例值。</p>
+     * <p>入座失败返回 {@code false} 并记一条 warn 日志，日志里带上房间号、玩家 id 和具体原因
+     * （房间满 / 座位号用尽）。具体走位、错开的过程，见方法体内的逐行注释与示例值。</p>
      *
      * @param gamePlayer 待加入的玩家
      * @param randomSeat 是否随机座位
-     * @return 加入成功返回该玩家；无空位返回 {@code null}
+     * @return 入座成功 {@code true}；房间没位置 {@code false}
      * @see #addPlayerWithSeatIndex(BaseGamePlayer, boolean)
      */
     public boolean addPlayerWithFreeSeatNumber(BaseGamePlayer gamePlayer, boolean randomSeat) {
-        //   4 人房，A 已经在 槽位0 / 座位3 —— 他是上一局随机进来的，所以这两个值本来就错开着
-        //   槽位 1、2、3 都空着
-        //   现在 B 入座（不随机）
-        //   期望结果：B 落在 槽位1，座位号取最小空闲号 0   —— 槽位 ≠ 座位号，这就是策略一的特点
-
-        // ① 空槽位下标。-1 表示「还没找到」。
-        //    靠它保证只记下「第一个」空位，而不是最后碰到的那个
-        //    例：本例循环结束后 slot = 1
+        // 空槽位下标。-1 表示「还没找到」。
+        // 靠它保证只记下「第一个」空位，而不是最后碰到的那个
         int slot = -1;
 
-        // ② 空闲座位号集合，初始认为 0~3 全空
-        //    例：本例初始 {0, 1, 2, 3}
-        //    这里只用到 key，value 没有意义——相当于拿 Map 当 Set 用。
+        // 空闲座位号集合，初始认为 0~3 全空。
+        // 这里只用到 key，value 没有意义——相当于拿 Map 当 Set 用
         Map<Integer, Integer> freeSeats = new HashMap<>();
-        for (int i = 0; i < maxSeatNumber; i++) {
+        for (int i = 0; i < MAX_SEAT_NUMBER; i++) {
             freeSeats.put(i, i);
         }
 
-
         if (!randomSeat) {
             // ========== 不随机：槽位取第一个空位，座位号取最小空闲号 ==========
-            // ③ 扫一遍现有座位：一边找空槽位，一边把已被占用的座位号划掉
+            //
+            // 示例场景：
+            //   4 人房，A 已经在 槽位0 / 座位3 —— 他是上一局随机进来的，所以这两个值本来就错开着
+            //   槽位 1、2、3 都空着
+            //   现在 B 入座（不随机）
+            //   期望结果：B 落在 槽位1，座位号取最小空闲号 0   —— 槽位 ≠ 座位号，这就是策略一的特点
+
+            // 扫一遍现有座位：一边找空槽位，一边把已被占用的座位号划掉
             for (int i = 0; i < gamePlayers.length; i++) {
-                // ③-1 槽位：遇到空位并且还没记过，就记下它。
-                //      slot == -1 这个条件不能少——没有它，后面每遇到一个空位都会覆盖，
-                //      最后拿到的是「最后一个空位」而不是第一个
-                //      例：i=0 时 gamePlayers[0]=A，不是空位，跳过
-                //          i=1 时是空位且 slot==-1  ->  slot = 1
-                //          i=2、i=3 虽然也是空位，但 slot 已经不是 -1 了，不再覆盖
+                // 槽位：遇到空位并且还没记过，就记下它。
+                // slot == -1 这个条件不能少——没有它，后面每遇到一个空位都会覆盖，
+                // 最后拿到的是「最后一个空位」而不是第一个
+                // 例：i=0 时 gamePlayers[0]=A，不是空位，跳过
+                //     i=1 时是空位且 slot==-1  ->  slot = 1
+                //     i=2、i=3 虽然也是空位，但 slot 已经不是 -1 了，不再覆盖
                 if (gamePlayers[i] == null && slot == -1) {
                     slot = i;
                 }
-                // ③-2 座位号：这个槽位上有人，说明他的座位号已被占用，从空闲集合里划掉
-                //      例：i=0 时遇到 A，A 的座位号是 3  ->  freeSeats 从 {0,1,2,3} 变成 {0,1,2}
-                //          i=1、2、3 都是空位，不处理
-                //          循环结束时 freeSeats = {0, 1, 2}
+                // 座位号：这个槽位上有人，说明他的座位号已被占用，从空闲集合里划掉
+                // 例：i=0 时遇到 A，A 的座位号是 3  ->  freeSeats 从 {0,1,2,3} 变成 {0,1,2}
+                //     i=1、2、3 都是空位，不处理
+                //     循环结束时 freeSeats = {0, 1, 2}
                 if (gamePlayers[i] != null) {
                     freeSeats.remove(gamePlayers[i].getSeat());
                 }
             }
 
-            // 满了，没有位置了
+            // 一个空槽位都没找到 = 所有槽位都有人 = 房间满了
             if (slot == -1) {
                 log.warn("玩家入座失败: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=false, reason=房间已满", code, logIdOf(gamePlayer));
                 return false;
             }
 
-            // ④ 把玩家放进上一步找到的空槽位
-            //    例：gamePlayers[1] = B。此刻 B.seat 还是默认值 0，座位号要到第 ⑤ 步才定
-            gamePlayers[slot] = gamePlayer;
-
-            // ⑤ 座位号：按 0 -> 1 -> 2 -> 3「升序」取第一个空闲号。
+            // 座位号：按 0 -> 1 -> 2 -> 3「升序」取第一个空闲号，取不到（-1）说明座位号用尽了。
+            // 座位号只有 MAX_SEAT_NUMBER 个，而 maxSize 可能比它大——
+            // 二八杠（maxSize=100）坐满 4 人之后，第 5 个人就会走到这里
             int seat = freeSeats.keySet().stream().min(Integer::compareTo).orElse(-1);
-            // 一般是不会走这里的
             if (seat == -1) {
                 log.warn("玩家入座失败: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=false, reason=无可用座位号", code, logIdOf(gamePlayer));
                 return false;
             }
-            gamePlayers[slot].setSeat(seat);
+
+            // 两处校验都过了才动状态。顺序不能反过来：先放人再校验的话，
+            // 校验失败 return false 时玩家已经躺在 gamePlayers 里了——
+            // 他占着一个槽位、座位号还是默认的 0（跟真正坐 0 号的人重座），
+            // 而调用方收到 false 不会登记他，就成了「在房间数组里、不在玩家表里」的幽灵
+            gamePlayers[slot] = gamePlayer;
+            gamePlayer.setSeat(seat);
 
             log.debug("玩家入座成功: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=false, slot={}", code, logIdOf(gamePlayer), slot);
             return true;
@@ -166,15 +180,16 @@ public abstract class BaseGameRoom {
 
         // ========== 随机：槽位随机挑，座位号按降序取第一个空闲号 ==========
         //
-        // 示例场景：空房，A 入座（随机），这次 ThreadLocalRandom 恰好抽到槽位 2
-        //          期望结果：A 落在 槽位2，座位号却是 3 —— 一步就错开了
+        // 示例场景：
+        //   空房，A 入座（随机），这次 ThreadLocalRandom 恰好抽到槽位 2
+        //   期望结果：A 落在 槽位2，座位号却是 3 —— 一步就错开了
 
-        // ② 空槽位清单。与不随机分支不同——那边只要「第一个」，
-        //    这边要收全，因为下一步得从里面随机挑一个
-        //    例：本例是空房  ->  freeSlots = [0, 1, 2, 3]
+        // 空槽位清单。与不随机分支不同——那边只要「第一个」，
+        // 这边要收全，因为下一步得从里面随机挑一个
+        // 例：本例是空房  ->  freeSlots = [0, 1, 2, 3]
         List<Integer> freeSlots = new LinkedList<>();
 
-        // ③ 扫一遍：空槽位收进清单，有人占的座位号从集合里划掉
+        // 扫一遍：空槽位收进清单，有人占的座位号从集合里划掉
         for (int i = 0; i < gamePlayers.length; i++) {
             if (gamePlayers[i] != null) {
                 freeSeats.remove(gamePlayers[i].getSeat());
@@ -183,30 +198,33 @@ public abstract class BaseGameRoom {
             }
         }
 
-        // ④ 注意这里判的是「还有空闲座位号」，不是「还有空槽位」。
-        //    人数上限大于 4 时会出现「槽位明明空着，但 0~3 四个座位号已占满」，
-        //    这时不能放人进去（放进去必然和人重座），直接返回 null
+        // 座位号一个都不剩了 = 坐不进去。
+        // 判的是「还有没有空闲座位号」，不是「还有没有空槽位」：
+        // maxSize 大于 MAX_SEAT_NUMBER 时会出现「槽位明明空着，但座位号已经占满」，
+        // 这时放人进去必然和人重座，所以直接返回 false
         if (freeSeats.isEmpty()) {
             log.warn("玩家入座失败: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=true, reason=座位号已满", code, logIdOf(gamePlayer));
             return false;
         }
 
-        // ⑤ 从空槽位清单里随机挑一个
-        //    例：freeSlots = [0,1,2,3]，nextInt(4) 抽到 2  ->  slot = 2
+        // 从空槽位清单里随机挑一个
+        // 例：freeSlots = [0,1,2,3]，nextInt(4) 抽到 2  ->  slot = 2
         slot = freeSlots.get(ThreadLocalRandom.current().nextInt(freeSlots.size()));
 
-        // ⑥ 放进抽到的槽位（槽位和座位号是两回事，这里只定了槽位）
-        //    例：gamePlayers[2] = A
-        gamePlayers[slot] = gamePlayer;
-
-        // ⑦ 座位号：与不随机分支相反，这里按 3 -> 2 -> 1 -> 0「降序」取第一个空闲号。
+        // 座位号：与不随机分支相反，这里按 3 -> 2 -> 1 -> 0「降序」取第一个空闲号。
+        // 方向反过来 + 槽位本身是随机的，两者就很容易错开
+        // 例：freeSeats = {0,1,2,3}  ->  取到 3  ->  A：槽位2 / 座位3
         int seat = freeSeats.keySet().stream().max(Integer::compareTo).orElse(-1);
-        // 一般是不会走这里的
+        // 走不到这里：上面刚判过 freeSeats 非空，中间也没有再 remove，max() 必然取得到。
+        // 留着只是挡住将来有人改动上面的逻辑
         if (seat == -1) {
             log.warn("玩家入座失败: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=true, reason=无可用座位号", code, logIdOf(gamePlayer));
             return false;
         }
-        gamePlayers[slot].setSeat(seat);
+
+        // 同不随机分支：校验都过了才动状态
+        gamePlayers[slot] = gamePlayer;
+        gamePlayer.setSeat(seat);
 
         log.debug("玩家入座成功: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=true, slot={}", code, logIdOf(gamePlayer), slot);
         return true;
@@ -215,29 +233,39 @@ public abstract class BaseGameRoom {
     /**
      * 入座（策略二）：<b>座位号 = 数组槽位下标</b>。
      *
+     * <p>与 {@link #addPlayerWithFreeSeatNumber 策略一} 的差别只有一处 —— 座位号怎么来：</p>
+     * <pre>
+     *   策略一   座位号 = 0 ~ MAX_SEAT_NUMBER-1 里最小的空闲号   与槽位无关，可能错开
+     *   策略二   座位号 = 槽位下标本身                            永远相等
+     * </pre>
+     *
+     * <p>因为座位号就是下标，「把下标当座位号用」的代码能正确工作，
+     * 人数也不受 {@link #MAX_SEAT_NUMBER} 限制——这正是二八杠、房卡场这类
+     * 人数上限大于座位号个数的玩法需要的。</p>
+     *
      * @param gamePlayer 待加入的玩家
      * @param randomSeat 是否随机座位
-     * @return 加入成功返回该玩家；无空位返回 {@code null}
+     * @return 入座成功 {@code true}；房间没位置 {@code false}
      * @see #addPlayerWithFreeSeatNumber(BaseGamePlayer, boolean)
      */
     public boolean addPlayerWithSeatIndex(BaseGamePlayer gamePlayer, boolean randomSeat) {
         if (!randomSeat) {
             // ========== 不随机：从下标 0 起扫，第一个空槽位就是它 ==========
             //
-            // 示例场景：4 人房，A 在 槽位0、B 在 槽位1，槽位 2、3 空着
-            //          现在 C 入座（不随机）
-            //          期望结果：C 落在 槽位2，座位号也是 2
-            // ① 从下标 0 往上扫，碰到第一个空槽位就放进去
+            // 示例场景：
+            //   4 人房，A 在 槽位0、B 在 槽位1，槽位 2、3 空着
+            //   现在 C 入座（不随机）
+            //   期望结果：C 落在 槽位2，座位号也是 2
             for (int i = 0; i < gamePlayers.length; i++) {
                 if (gamePlayers[i] == null) {
-                    // ② 放进这个空槽位
-                    //    例：i=0 是 A、i=1 是 B，都不是空位，跳过
-                    //        i=2 是空位  ->  gamePlayers[2] = C
+                    // 放进这个空槽位
+                    // 例：i=0 是 A、i=1 是 B，都不是空位，跳过
+                    //     i=2 是空位  ->  gamePlayers[2] = C
                     gamePlayers[i] = gamePlayer;
 
-                    // ③ 座位号 = 数组下标 —— 这是与策略一最本质的差别。
-                    //    策略一在这里还要再查一遍「空闲座位号集合」，本策略直接拿下标当座位号
-                    //    例：C.setSeat(2)
+                    // 座位号 = 数组下标 —— 这是与策略一最本质的差别。
+                    // 策略一在这里还要再查一遍「空闲座位号集合」，本策略直接拿下标当座位号
+                    // 例：C.setSeat(2)
                     gamePlayers[i].setSeat(i);
 
                     log.debug("玩家入座成功: room={}, player={}, strategy=SEAT_INDEX, random=false, slot={}", code, logIdOf(gamePlayer), i);
@@ -251,12 +279,13 @@ public abstract class BaseGameRoom {
         }
         // ========== 随机：先收集所有空槽位，再随机挑一个 ==========
         //
-        // 示例场景：4 人房，A 在 槽位1，槽位 0、2、3 空着
-        //          现在 B 入座（随机）
-        //          期望结果：B 落在 0/2/3 中的一个，座位号 == 那个槽位
+        // 示例场景：
+        //   4 人房，A 在 槽位1，槽位 0、2、3 空着
+        //   现在 B 入座（随机）
+        //   期望结果：B 落在 0/2/3 中的一个，座位号 == 那个槽位
 
-        // ① 收集全部空槽位
-        //    例：freeSlots = [0, 2, 3]
+        // 收集全部空槽位
+        // 例：freeSlots = [0, 2, 3]
         List<Integer> freeSlots = new LinkedList<>();
         for (int i = 0; i < gamePlayers.length; i++) {
             if (gamePlayers[i] == null) {
@@ -264,26 +293,25 @@ public abstract class BaseGameRoom {
             }
         }
 
-        // ② 还有空位才放人。
-        //    注意这里判的是「空槽位」就够了——本策略座位号就是槽位，
-        //    不存在「槽位空着但座位号不够用」的情况，不必像策略一那样另外维护座位号集合
-        //    例：freeSlots = [0,2,3] 非空，继续往下
+        // 还有空位才放人。
+        // 注意这里判的是「空槽位」就够了——本策略座位号就是槽位，
+        // 不存在「槽位空着但座位号不够用」的情况，不必像策略一那样另外维护座位号集合
+        // 例：freeSlots = [0,2,3] 非空，继续往下
         if (freeSlots.isEmpty()) {
             log.warn("玩家入座失败: room={}, player={}, strategy=SEAT_INDEX, random=true, reason=房间已满", code, logIdOf(gamePlayer));
             return false;
         }
 
-
-        // ③ 从清单里随机挑一个空槽位
-        //    例：freeSlots = [0,2,3]，nextInt(3) 抽到下标 1  ->  slot = 2
+        // 从清单里随机挑一个空槽位
+        // 例：freeSlots = [0,2,3]，nextInt(3) 抽到下标 1  ->  slot = 2
         Integer slot = freeSlots.get(ThreadLocalRandom.current().nextInt(freeSlots.size()));
 
-        // ④ 放进抽到的槽位
-        //    例：gamePlayers[2] = B
+        // 放进抽到的槽位
+        // 例：gamePlayers[2] = B
         gamePlayers[slot] = gamePlayer;
 
-        // ⑤ 座位号 = 下标。随机入座也不会错开——这是策略二的标志性特征
-        //    例：B.setSeat(2)，最终 B：槽位2 / 座位2
+        // 座位号 = 下标。随机入座也不会错开——这是策略二的标志性特征
+        // 例：B.setSeat(2)，最终 B：槽位2 / 座位2
         gamePlayers[slot].setSeat(slot);
         log.debug("玩家入座成功: room={}, player={}, strategy=SEAT_INDEX, random=true, slot={}", code, logIdOf(gamePlayer), slot);
         return true;
@@ -323,7 +351,7 @@ public abstract class BaseGameRoom {
     /**
      * 按<b>数组槽位下标</b>取玩家。
      *
-     * <p><b>参数是槽位，不是座位号</b>——方法名叫 ByIndex 而不是 BySeat 就是这个原因。
+     * <p><b>参数是槽位，不是座位号</b>——方法名叫 BySeats 而不是 BySeatNo 就是这个原因。
      * 默认策略（{@link #addPlayerWithFreeSeatNumber}）下这两个值会错开，
      * 传座位号进来会取到别人或 {@code null}。想按座位号找人，
      * 自己遍历数组比对 {@link BaseGamePlayer#getSeat()}。</p>
