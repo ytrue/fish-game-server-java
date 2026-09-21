@@ -327,6 +327,7 @@ public abstract class BaseGobangManager {
 
             // 下满了 → 判和棋。「平局房主赢」即 0 号座位获胜
             if (finish) {
+                // 这个0号会不会空，一般是不会有的
                 // 取 0 号座位上的玩家对象当赢家传进回调
                 onPlayerWin(gameRoom, gameRoom.getGamePlayerBySeat(0));
                 // 已判和棋，直接收工，不再往下切出牌权

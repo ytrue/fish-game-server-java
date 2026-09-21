@@ -13,7 +13,9 @@ import org.springframework.stereotype.Component;
  *
  * <p>在所有业务初始化监听器执行完毕后，将用户实体置为在线状态（{@code onlineState = 0}）并
  * 回写数据库。</p>
- *
+ * UserInitEvent 最终收尾监听器。
+ * <p>约定：本监听器使用 {@link Ordered#LOWEST_PRECEDENCE}，
+ * 仅用于 UserInitEvent 的最终收尾操作。</p>
  * @since 1.0.0
  */
 @Component

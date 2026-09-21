@@ -16,6 +16,9 @@ import org.springframework.stereotype.Component;
  *
  * <p>{@code online_state} 取值约定：{@code 0} 离线、{@code 1} 大厅、
  * {@code 2~10} 在对应游戏中（见 {@code GameEnum}）。</p>
+ * NetExitEvent 最终收尾监听器。
+ * <p>约定：本监听器使用 {@link Ordered#LOWEST_PRECEDENCE}，
+ * 仅用于 NetExitEvent 的最终收尾操作。</p>
  *
  * @since 1.0.0
  */
