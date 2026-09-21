@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -41,21 +42,6 @@ public class UserContainer {
      * 活跃用户 id 表。
      */
     private static final Map<Long, ServerUser> USER_ID_MAP = new ConcurrentHashMap<>();
-
-    /**
-     * 活跃用户 openid 表。
-     */
-    private static final Map<String, ServerUser> USER_OPENID_MAP = new ConcurrentHashMap<>();
-
-    /**
-     * 活跃用户 unionid 表。
-     */
-    private static final Map<String, ServerUser> USER_UNIONID_MAP = new ConcurrentHashMap<>();
-
-    /**
-     * 活跃用户用户名表。
-     */
-    private static final Map<String, ServerUser> USER_NAME_MAP = new ConcurrentHashMap<>();
 
     /**
      * 构造器注入用户数据库操作接口。
@@ -94,9 +80,6 @@ public class UserContainer {
 
         // id 是 long 原生类型，建号后必定有效
         USER_ID_MAP.put(user.getId(), user);
-        putIfPresent(USER_OPENID_MAP, user.getOpenid(), user);
-        putIfPresent(USER_UNIONID_MAP, user.getUnionid(), user);
-        putIfPresent(USER_NAME_MAP, user.getUsername(), user);
     }
 
     /**
@@ -118,35 +101,6 @@ public class UserContainer {
         }
 
         USER_ID_MAP.remove(user.getId(), user);
-        removeIfPresent(USER_OPENID_MAP, user.getOpenid(), user);
-        removeIfPresent(USER_UNIONID_MAP, user.getUnionid(), user);
-        removeIfPresent(USER_NAME_MAP, user.getUsername(), user);
-    }
-
-    /**
-     * 键有效时写入索引。
-     *
-     * @param map  目标索引表
-     * @param key  索引键（为 {@code null} 或空串时跳过）
-     * @param user 用户
-     */
-    private static void putIfPresent(Map<String, ServerUser> map, String key, ServerUser user) {
-        if (key != null && !key.isEmpty()) {
-            map.put(key, user);
-        }
-    }
-
-    /**
-     * 键有效时移除索引。
-     *
-     * @param map  目标索引表
-     * @param key  索引键（为 {@code null} 或空串时跳过）
-     * @param user 用户
-     */
-    private static void removeIfPresent(Map<String, ServerUser> map, String key, ServerUser user) {
-        if (key != null && !key.isEmpty()) {
-            map.remove(key, user);
-        }
     }
 
     /**
@@ -217,15 +171,6 @@ public class UserContainer {
         return USER_ID_MAP.get(userId);
     }
 
-    /**
-     * 根据 unionid 获取用户。
-     *
-     * @param unionid unionid
-     * @return 用户；不存在时返回 {@code null}
-     */
-    public static ServerUser getUserByUnionid(String unionid) {
-        return USER_UNIONID_MAP.get(unionid);
-    }
 
     /**
      * 根据用户名获取用户。
@@ -234,7 +179,14 @@ public class UserContainer {
      * @return 用户；不存在时返回 {@code null}
      */
     public static ServerUser getUserByUsername(String username) {
-        return USER_NAME_MAP.get(username);
+        if (!StringUtils.hasText(username)) {
+            return null;
+        }
+        return USER_ID_MAP.values().stream()
+                .filter(user -> user.getEntity() != null)
+                .filter(user -> username.equals(user.getEntity().getUsername()))
+                .findFirst()
+                .orElse(null);
     }
 
     /**

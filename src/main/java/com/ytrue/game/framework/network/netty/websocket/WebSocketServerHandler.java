@@ -96,6 +96,10 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
             user.setOnline(false);
             // 发布退出事件：各业务模块清理自身数据，最后由 NetExitFinishListener 兜底回写数据库
             SpringEventPublisher.publish(new NetExitEvent(user));
+            // 不会出现「监听器想 getUserById 却已经被摘掉」。
+            // 旧工程断线不摘，USER_CONNECT_MAP 会随「不再回来的连接数」单调增长，
+            // 拖慢每 5 秒一次的心跳全量拷贝与每次全服群发的遍历
+            UserContainer.removeServerUser(user);
         } else {
             log.warn("webSocketServer - 连接[{}]断开，但未找到对应会话（可能尚未完成登记）", channelId);
         }

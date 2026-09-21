@@ -89,6 +89,10 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
             user.setOnline(false);
             // 发布退出事件：各业务模块清理自身数据，最后由 NetExitFinishListener 兜底回写数据库
             SpringEventPublisher.publish(new NetExitEvent(user));
+            // 不会出现「监听器想 getUserById 却已经被摘掉」。
+            // 旧工程断线不摘，USER_CONNECT_MAP 会随「不再回来的连接数」单调增长，
+            // 拖慢每 5 秒一次的心跳全量拷贝与每次全服群发的遍历
+            UserContainer.removeServerUser(user);
         } else {
             // 用 warn：正常断连一定找得到会话，找不到说明 channelActive 没跑完就被断，
             // 或该连接已被其它路径清理过——两种情况都值得关注。
@@ -275,12 +279,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
     public void removeClientChannel(String channelId) {
         ChannelHandlerContext context = channelMap.remove(channelId);
         if (context == null) {
-            // 连接表中已没有这条连接——这是正常路径，不是异常：
-            // closeClientConnect 会先 channel.close() 再移除（第 1 次命中），
-            // 而 close() 触发的 channelInactive 又会移除一次（第 2 次落空）。
-            // 因此这里用 debug，否则每次关闭连接都会打出一条假的「移除失败」警告
-            log.debug("tcpServer - 连接[{}]已不在连接表中（可能已被清理），当前连接数量[{}]",
-                    channelId, channelMap.size());
+            log.debug("tcpServer - 连接[{}]已不在连接表中（可能已被清理），当前连接数量[{}]", channelId, channelMap.size());
         } else {
             log.debug("tcpServer - TcpSocket断开并移除成功[{}] 当前连接数量[{}]", channelId, channelMap.size());
         }
