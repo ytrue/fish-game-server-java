@@ -152,20 +152,13 @@ public abstract class BaseGameRoom {
             gamePlayers[slot] = gamePlayer;
 
             // ⑤ 座位号：按 0 -> 1 -> 2 -> 3「升序」取第一个空闲号。
-            //    注意方向——随机分支是反过来的（降序），这正是 javadoc 示例三里
-            //    「同样抽到槽位 2，两个策略给出不同座位号」的直接原因
-            //    例：freeSeats = {0,1,2}
-            //        freeSeats.get(0) 非空  ->  B.setSeat(0)
-            //        最终 B：槽位1 / 座位0
-            if (freeSeats.get(0) != null) {
-                gamePlayers[slot].setSeat(0);
-            } else if (freeSeats.get(1) != null) {
-                gamePlayers[slot].setSeat(1);
-            } else if (freeSeats.get(2) != null) {
-                gamePlayers[slot].setSeat(2);
-            } else {
-                gamePlayers[slot].setSeat(3);
+            int seat = freeSeats.keySet().stream().min(Integer::compareTo).orElse(-1);
+            // 一般是不会走这里的
+            if (seat == -1) {
+                log.warn("玩家入座失败: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=false, reason=无可用座位号", code, logIdOf(gamePlayer));
+                return false;
             }
+            gamePlayers[slot].setSeat(seat);
 
             log.debug("玩家入座成功: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=false, slot={}", code, logIdOf(gamePlayer), slot);
             return true;
@@ -207,20 +200,14 @@ public abstract class BaseGameRoom {
         gamePlayers[slot] = gamePlayer;
 
         // ⑦ 座位号：与不随机分支相反，这里按 3 -> 2 -> 1 -> 0「降序」取第一个空闲号。
-        //    方向反过来 + 槽位本身是随机的，两者就很容易错开
-        //    例：freeSeats = {0,1,2,3}
-        //        freeSeats.get(3) 非空  ->  A.setSeat(3)
-        //        最终 A：槽位2 / 座位3   —— 槽位 2 上坐着「3 号」
-        if (freeSeats.get(3) != null) {
-            gamePlayers[slot].setSeat(3);
-        } else if (freeSeats.get(2) != null) {
-            gamePlayers[slot].setSeat(2);
-        } else if (freeSeats.get(1) != null) {
-            gamePlayers[slot].setSeat(1);
-        } else {
-            // 走不到这里：上面的 isEmpty 判断已经保证至少有一个空闲座位号
-            gamePlayers[slot].setSeat(0);
+        int seat = freeSeats.keySet().stream().max(Integer::compareTo).orElse(-1);
+        // 一般是不会走这里的
+        if (seat == -1) {
+            log.warn("玩家入座失败: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=true, reason=无可用座位号", code, logIdOf(gamePlayer));
+            return false;
         }
+        gamePlayers[slot].setSeat(seat);
+
         log.debug("玩家入座成功: room={}, player={}, strategy=FREE_SEAT_NUMBER, random=true, slot={}", code, logIdOf(gamePlayer), slot);
         return true;
     }
