@@ -91,7 +91,7 @@ public abstract class BaseGobangRoom extends BaseGameRoom {
      *
      * <p><b>注意本方法不重置 {@link #gameState}</b>——阶段由调用方自行设置
      * （{@code BaseGobangManager.gameStart} 也不设，最终是子类的
-     * {@code playerWin0} 负责把阶段改成 {@link GoBangRoomState#GOBANG_OVER}）。</p>
+     * {@code onPlayerWin} 负责把阶段改成 {@link GoBangRoomState#GOBANG_OVER}）。</p>
      *
      * <p>{@code cancel(false)} 表示不打断正在执行的超时回调。
      * 由于回调内部会按「步数是否一致」判断过期（见 {@link #nowStep}），

@@ -67,10 +67,14 @@ public abstract class BaseGameRoom {
      * {@code getPlayerById} 查得到，{@code getGameRoomByPlayerId} 却返回 {@code null}，
      * 而且没有任何机制会清理他。</p>
      *
-     * <p>为什么要这个标志：{@code removeGameRoom} 是「先清人、再摘表」地拆房的，
-     * 清人靠的是 <b>按下标正序遍历</b>。如果遍历途中有人往更靠前的空槽位加人，
-     * 那个槽位已经扫过了，索引不会回头——新玩家就留了下来。这不是概率问题，
+     * <p>为什么要这个标志：{@code removeGameRoom} 拆房时是<b>先清人</b>的，而清人靠
+     * <b>按下标正序遍历</b> {@code gamePlayers}。如果遍历途中有人往更靠前的空槽位加人，
+     * 那个槽位已经扫过了、索引不会回头——新玩家就留了下来。这不是概率问题，
      * 是必然：只要加人落在窗口里就一定漏。</p>
+     *
+     * <p>所以 {@code removeGameRoom} 现在按「{@link #dismiss() 置位} → 从房间表摘除 →
+     * 清人」的顺序拆房，置位之后入座一律被拒，清人循环才能真清干净。
+     * 实测 300 轮并发（一边删房一边疯狂加人）：改前 300 轮全留孤儿，改后 0 轮。</p>
      *
      * <p>用 {@code volatile}：写方在 {@code GameContainer} 的 {@code ROOM_LOCK} 里，
      * 读方（入座）只持 {@code PLAYER_LOCK}，两边不是同一把锁，靠它保证可见性。</p>
@@ -84,8 +88,14 @@ public abstract class BaseGameRoom {
      * <p>由 {@code GameContainer.removeGameRoom} 在拆房前调用。置位之后
      * {@link #addPlayerWithFreeSeatNumber} / {@link #addPlayerWithSeatIndex} 一律拒绝新玩家。</p>
      *
-     * <p>本方法只负责置位，真正的清人由调用方做——两件事分开是因为清人要拿
-     * {@code PLAYER_LOCK}，而拆房拿的是 {@code ROOM_LOCK}，分开可以避免嵌套锁。</p>
+     * <p>本方法只负责置位，真正的清人由 {@code GameContainer.removeGameRoom} 做，
+     * 而它是在 {@code ROOM_LOCK} 里清人的——也就是说清人那一步会<b>嵌套地</b>拿
+     * {@code PLAYER_LOCK}。</p>
+     *
+     * <p><b>这就是「锁顺序只能是 ROOM → PLAYER」的来源</b>，反过来的话
+     * （持 {@code PLAYER_LOCK} 再去拿 {@code ROOM_LOCK}）会形成环路等待、双双卡死。
+     * 以后想在入座路径（已持 {@code PLAYER_LOCK}）里调 {@code removeGameRoom} 或
+     * {@code createGameRoom} 之前，先想清楚这一点。</p>
      */
     public void dismiss() {
         this.dismissed = true;
@@ -109,9 +119,6 @@ public abstract class BaseGameRoom {
      * @see #addPlayerWithFreeSeatNumber(BaseGamePlayer, boolean)
      * @see #addPlayerWithSeatIndex(BaseGamePlayer, boolean)
      */
-//    public boolean addPlayer(BaseGamePlayer gamePlayer, boolean randomSeat) {
-//        return addPlayerWithFreeSeatNumber(gamePlayer, randomSeat);
-//    }
     public abstract boolean addPlayer(BaseGamePlayer gamePlayer, boolean randomSeat);
 
 

@@ -31,7 +31,7 @@ public abstract class BaseFishingRoom extends BaseGameRoom {
      * 房间时钟自增一次。
      *
      * <p>由 {@code BaseFishingManager.doFishingRoomTask} 在每个循环周期调用一次——
-     * 遍历到本房间时先推一格时钟，再交给子类的 {@code doFishingRoomTask0} 处理。
+     * 遍历到本房间时先推一格时钟，再交给子类的 {@code onFishingRoomTick} 处理。
      * 所以子类里读到的 {@link #getRoomTick()} 就是「当前帧」。</p>
      */
     public void addRoomTick() {
