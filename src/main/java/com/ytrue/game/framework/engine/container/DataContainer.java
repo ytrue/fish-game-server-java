@@ -109,8 +109,9 @@ public class DataContainer {
 
                     // 以实体 id 为键放入本表
                     innerMap.put(instance.getId(), instance);
-                } catch (Exception ignored) {
-                    // 单行解析失败忽略，不影响其它行
+                } catch (Exception e) {
+                    // 单行解析失败不影响其它行
+                    log.error("CSV单行解析发生异常:[{}]", e.getMessage(), e);
                 }
             }
         } catch (Exception e) {

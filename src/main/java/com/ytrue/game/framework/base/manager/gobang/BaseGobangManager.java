@@ -278,19 +278,24 @@ public abstract class BaseGobangManager {
                 // 步数 +1。例：1 → 2
                 // nowStep 记的是「第几手」，每切换一手就 +1；开局也会 +1，所以开局后它就是 1
                 gameRoom.setNowStep(gameRoom.getNowStep() + 1);
+                // 【挂表前的快照】本次切换后的步数，作为这个定时器的「凭据」。
+                // 必须是局部变量：lambda 若写成 gameRoom.getNowStep()，那是「到点执行时」才求值，
+                // 读到的已经是那一刻的最新值，凭据校验就变成自己和自己比，恒等成立。
+                int stepSnapshot = gameRoom.getNowStep();
                 // 上一位玩家遗留的定时器要取消，否则多个超时回调会同时存在。
                 // 第一次进来时 stepFuture 还是 null，所以必须先判空
                 if (gameRoom.getStepFuture() != null) {
-                    // cancel(false) = 不打断正在执行的回调；
-                    // 就算它已经开始跑了，也会被上面那个步数校验挡掉
+                    // cancel(false) = 不打断正在执行的回调。
+                    // 也就是说它拦不住「已经出队、正在执行」的那一个——
+                    // 那种情况由 playStepTimeout 里的步数校验兜住（见下）
                     gameRoom.getStepFuture().cancel(false);
                 }
                 // 挂新的 30 秒超时：到点还没落子就自动过手。
-                // 传的是自增后的 nowStep（= 2），和房间当前步数一致，
-                // 所以这个定时器不会一挂上就被当成过期作废
+                // 传的是上面快照下来的 stepSnapshot，不是到点再读——
+                // 这样过期回调触发时，changeNowPlayer 一比对步数就会把它丢弃
                 gameRoom.setStepFuture(ThreadPoolFactory.TASK_SERVICE_POOL.schedule(
-                        () -> playStepTimeout(gameRoom, gameRoom.getNowStep()), PLAY_STEP_TIME, TimeUnit.SECONDS)
-                );
+                        () -> playStepTimeout(gameRoom, stepSnapshot), PLAY_STEP_TIME, TimeUnit.SECONDS));
+
                 // 子类回调：下发「该张三下了，剩余 30 秒」的协议
                 onChangeNowPlayer(gameRoom, nowPlayer);
             }

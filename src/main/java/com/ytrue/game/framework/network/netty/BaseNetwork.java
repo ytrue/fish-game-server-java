@@ -116,29 +116,30 @@ public abstract class BaseNetwork implements INetwork {
     @Override
     public void close() {
         // 只有启动过才需要关闭
-
-        try {
-            // 关闭服务端通道并等待关闭完成。
-            // closeFuture().sync()
-            //    = 等别人把 Channel 关掉
-            //close().sync()
-            //    = 我现在就把 Channel 关掉，然后等关闭完成
-            if (serverChannel != null) {
-                serverChannel.close().sync();
-                // 置空引用，使 open() 可以再次启动
-                serverChannel = null;
+        synchronized (operationLock) {
+            try {
+                // 关闭服务端通道并等待关闭完成。
+                // closeFuture().sync()
+                //    = 等别人把 Channel 关掉
+                //close().sync()
+                //    = 我现在就把 Channel 关掉，然后等关闭完成
+                if (serverChannel != null) {
+                    serverChannel.close().sync();
+                    // 置空引用，使 open() 可以再次启动
+                    serverChannel = null;
+                }
+                // 优雅关闭 boss 线程池，等待其中任务结束
+                bossGroup.shutdownGracefully().sync();
+                // 优雅关闭 worker 线程池，等待其中任务结束
+                workerGroup.shutdownGracefully().sync();
+                bossGroup = null;
+                workerGroup = null;
+            } catch (Exception e) {
+                // 关闭过程中的异常只记录、不向外抛（关闭流程要尽量走完）。
+                // 用 warn 而非 info：关网络失败意味着端口可能没释放，
+                // 不属于「正常流程」，用 info 会让人以为一切正常
+                log.warn("关闭监听出错:[{}]", e.getMessage(), e);
             }
-            // 优雅关闭 boss 线程池，等待其中任务结束
-            bossGroup.shutdownGracefully().sync();
-            // 优雅关闭 worker 线程池，等待其中任务结束
-            workerGroup.shutdownGracefully().sync();
-            bossGroup = null;
-            workerGroup = null;
-        } catch (Exception e) {
-            // 关闭过程中的异常只记录、不向外抛（关闭流程要尽量走完）。
-            // 用 warn 而非 info：关网络失败意味着端口可能没释放，
-            // 不属于「正常流程」，用 info 会让人以为一切正常
-            log.warn("关闭监听出错:[{}]", e.getMessage(), e);
         }
     }
 
@@ -182,7 +183,7 @@ public abstract class BaseNetwork implements INetwork {
             // 取出通道上下文
             ChannelHandlerContext channel = getClientChannel(connect);
             // 通道还在才能拿到对端地址
-            if (channel != null && channel.channel().remoteAddress() == null) {
+            if (channel != null && channel.channel().remoteAddress() != null) {
                 return ((InetSocketAddress) channel.channel().remoteAddress()).getAddress().getHostAddress();
             }
         }

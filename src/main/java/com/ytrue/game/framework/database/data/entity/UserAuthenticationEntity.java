@@ -1,5 +1,6 @@
 package com.ytrue.game.framework.database.data.entity;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import com.ytrue.game.framework.database.DbEntity;
 import lombok.Getter;
 import lombok.Setter;
@@ -13,6 +14,7 @@ import java.io.Serial;
  */
 @Getter
 @Setter
+@TableName("app_user_authentication")
 public class UserAuthenticationEntity extends DbEntity {
 
     @Serial

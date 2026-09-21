@@ -350,7 +350,7 @@ public class GameContainer {
                 // DB 写失败只记日志，不影响本方法的返回值
                 updateOnlineState(user, gameRoom.getGameId());
 
-                log.debug("创建玩家成功: room={}, player={}, slot={}, onlineState={}", gameRoom.getCode(), user.getId(), gamePlayer.getSeat(), gameRoom.getGameId());
+                log.debug("创建玩家成功: room={}, player={}, seat={}, onlineState={}", gameRoom.getCode(), user.getId(), gamePlayer.getSeat(), gameRoom.getGameId());
                 return gamePlayer;
             }
         } catch (Exception e) {

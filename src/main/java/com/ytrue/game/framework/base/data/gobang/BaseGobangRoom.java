@@ -73,9 +73,6 @@ public abstract class BaseGobangRoom extends BaseGameRoom {
     /**
      * 当前步数。
      *
-     * <p>每落一子 +1。它还是「落子超时定时器是否过期」的凭据：
-     * 挂定时器时把当时的步数一起记下来，回调触发时比对步数——
-     * 对不上说明玩家已经落过子了，这次超时作废。</p>
      */
     private int nowStep = 0;
 
