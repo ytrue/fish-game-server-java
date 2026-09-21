@@ -194,17 +194,28 @@ public class AppHandlerRegister implements BeanPostProcessor {
     /**
      * 获取类及其所有父类声明的方法（方法名 → 方法）。
      *
+     * <p>之所以要往上找父类，是为了拿到<b>继承下来的 {@code checker}</b>——
+     * 例如旧的 GM 控制器把 {@code checker} 定义在 {@code GmBaseController} 里、
+     * 四个子类共用一份，子类自己不再声明，只能靠这条继承链取到。</p>
+     *
+     * <p><b>同名的取子类的</b>：循环从子类往父类走，先访问到的就是子类的同名方法，
+     * 所以这里必须用 {@code putIfAbsent} 而不是 {@code put}——一旦让父类覆盖子类，
+     * 子类的覆写会被<b>静默忽略</b>：注册时读的是父类那个 {@code Method} 上的注解，
+     * 于是 {@code msgCode} / {@code checker} / {@code exp} 全按父类的来
+     * （{@code Method.invoke} 本身是虚分派，执行的仍是子类实现，所以只有「路由与校验」出错，
+     * 表现是消息码对不上或校验被跳过，而不是报错）。</p>
+     *
      * @param beanClass 目标类
      * @return 方法名到方法的映射
      */
     private Map<String, Method> getDeclaredMethodMap(Class<?> beanClass) {
         // 返回结果
         Map<String, Method> declaredMethodMap = new HashMap<>();
-        // 循环处理
+        // 从子类往父类遍历：先放进来的就是子类的同名方法
         for (Class<?> clazz = beanClass; clazz != Object.class; clazz = clazz.getSuperclass()) {
-            // 填充所有方法
+            // 填充所有方法；putIfAbsent 保证后面的父类方法不覆盖子类的
             for (Method method : clazz.getDeclaredMethods()) {
-                declaredMethodMap.put(method.getName(), method);
+                declaredMethodMap.putIfAbsent(method.getName(), method);
             }
         }
         return declaredMethodMap;
