@@ -320,23 +320,22 @@ public abstract class BaseGobangManager {
                 }
             }
 
-            // 下满了 → 判和棋，「平局房主赢」即 0 号座位获胜
-            // 注意这里没有 return：后面仍会往下走去找下一位玩家切出牌权，
-            // 属于旧工程遗留缺陷，靠子类的 onPlayerWin 内部改房间状态来兜住
+            // 下满了 → 判和棋。「平局房主赢」即 0 号座位获胜
             if (finish) {
                 // 取 0 号座位上的玩家对象当赢家传进回调
                 onPlayerWin(gameRoom, gameRoom.getGamePlayerBySeat(0));
-                // 结束了，没有位置下了，后手为胜利者
+                // 已判和棋，直接收工，不再往下切出牌权
                 return;
             }
 
-            // 当前座位的下一格」开始绕圈找，且跳过空座位
+            // 从「当前座位的下一格」开始绕圈找，并跳过空座位。
             // i 从 1 走到 maxSize-1，正好把除自己以外的座位都看一遍
             for (int i = 1; i < gameRoom.getMaxSize(); i++) {
                 // 取模实现绕圈：座位 2 之后回到 0，不会越界
                 int seat = (gameRoom.getNowPlayerSeat() + i) % gameRoom.getMaxSize();
                 // 取该座位上的玩家对象；座位空着时返回 null
                 BaseGobangPlayer nextPlayer = gameRoom.getGamePlayerBySeat(seat);
+                // 空座位跳过。旧实现没判空，房内只剩 1 人时会把 null 传进 changeNowPlayer 抛 NPE
                 if (nextPlayer != null) {
                     // 找到人即切换；nowStep 原样传下去，由 changeNowPlayer 校验凭据
                     changeNowPlayer(gameRoom, nextPlayer, nowStep);
@@ -344,6 +343,10 @@ public abstract class BaseGobangManager {
                     return;
                 }
             }
+            // 绕完一圈都没找到别人（房里只剩当前这一个玩家）→ 什么都不做。
+            // 注意此时旧定时器已被上一手 cancel 掉，也没有挂新的，所以这一局会停在这儿，
+            // 等该玩家落子、或房间被销毁
+            // 一般来说不会有这个问题的
         }
     }
 
