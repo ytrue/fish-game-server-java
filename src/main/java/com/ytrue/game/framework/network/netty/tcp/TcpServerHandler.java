@@ -98,7 +98,12 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 
         // 从连接表移除，避免连接表随连接数增长而无限膨胀
         removeClientChannel(channelId);
-        super.channelUnregistered(ctx);
+        // 把事件继续往流水线后面传。ChannelInboundHandlerAdapter.channelInactive 的实现
+        // 就是 ctx.fireChannelInactive()，本处理器是流水线的最后一环，所以这里实际是空转。
+        // 但要转发的是 channelInactive 本身：若写成 super.channelUnregistered(ctx)，
+        // 往下游发的是 channelUnregistered——将来在它之后再加处理器（埋点、访问日志等）
+        // 就只会收到 channelUnregistered，永远等不到 channelInactive
+        super.channelInactive(ctx);
     }
 
     /**

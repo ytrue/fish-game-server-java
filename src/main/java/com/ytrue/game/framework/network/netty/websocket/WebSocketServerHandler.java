@@ -102,9 +102,7 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<BinaryWe
 
         // 从连接表移除，避免连接表随连接数增长而无限膨胀
         removeClientChannel(channelId);
-        // 注：SimpleChannelInboundHandler 不提供 channelUnregistered 的转发，
-        //     这里调用父类的同名方法保持与 TCP 侧一致的行为
-        super.channelUnregistered(ctx);
+        super.channelInactive(ctx);
     }
 
     @Override
