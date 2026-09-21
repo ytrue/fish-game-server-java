@@ -76,9 +76,11 @@ public abstract class BaseGameRoom {
      * @see #addPlayerWithFreeSeatNumber(BaseGamePlayer, boolean)
      * @see #addPlayerWithSeatIndex(BaseGamePlayer, boolean)
      */
-    public boolean addPlayer(BaseGamePlayer gamePlayer, boolean randomSeat) {
-        return addPlayerWithFreeSeatNumber(gamePlayer, randomSeat);
-    }
+//    public boolean addPlayer(BaseGamePlayer gamePlayer, boolean randomSeat) {
+//        return addPlayerWithFreeSeatNumber(gamePlayer, randomSeat);
+//    }
+    public abstract boolean addPlayer(BaseGamePlayer gamePlayer, boolean randomSeat);
+
 
     /**
      * 入座（策略一，默认）：<b>座位号从「空闲座位号」里取最小的那个，与数组槽位无关</b>。

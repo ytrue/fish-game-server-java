@@ -4,6 +4,7 @@ import com.ytrue.game.framework.base.data.BaseGamePlayer;
 import com.ytrue.game.framework.base.data.BaseGameRoom;
 import com.ytrue.game.framework.database.data.mapper.UserMapper;
 import com.ytrue.game.framework.engine.data.ServerUser;
+import com.ytrue.game.framework.engine.utils.ThreadPoolFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -12,6 +13,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -216,7 +218,9 @@ public class GameContainer {
     public static boolean removeGameRoom(BaseGameRoom gameRoom) {
         try {
             synchronized (ROOM_LOCK) {
-                // 先清人再删房：玩家表里不能留下指向已消失房间的条目
+                // 先摘表：别人立刻拿不到这个房间了，也就不会对它做任何操作
+                roomCodeMap.remove(gameRoom.getCode());
+                // 在慢慢的踢人
                 for (int i = 0; i < gameRoom.getMaxSize(); i++) {
                     // 获取玩家
                     if (gameRoom.getGamePlayerBySeat(i) != null) {
@@ -224,7 +228,6 @@ public class GameContainer {
                         removeGamePlayerBySeat(gameRoom, i);
                     }
                 }
-                roomCodeMap.remove(gameRoom.getCode());
                 log.debug("移除房间: room={}, roomClass={}", gameRoom.getCode(), gameRoom.getClass().getSimpleName());
                 return true;
             }
@@ -317,17 +320,19 @@ public class GameContainer {
                 // 设置房间号码
                 gamePlayer.setRoomCode(gameRoom.getCode());
 
+//                boolean seated;
+//                if (playerClass.getName().equals("com.ytrue.game.business.entity.fightten.FightTenPlayer") ||
+//                        playerClass.getName().equals("com.ytrue.game.business.entity.fightten.FightTenRobotPlayer")
+//                ) {
+//                    seated = gameRoom.addPlayerWithSeatIndex(gamePlayer, randomSeat);
+//                } else {
+//                    seated = gameRoom.addPlayerWithFreeSeatNumber(gamePlayer, randomSeat);
+//                }
+//                if (!seated) {
+//                    return null;
+//                }
 
-                // TODO这个后面在看吧
-                boolean seated;
-                if (playerClass.getName().equals("com.ytrue.game.business.entity.fightten.FightTenPlayer") ||
-                        playerClass.getName().equals("com.ytrue.game.business.entity.fightten.FightTenRobotPlayer")
-                ) {
-                    seated = gameRoom.addPlayerWithSeatIndex(gamePlayer, randomSeat);
-                } else {
-                    seated = gameRoom.addPlayerWithFreeSeatNumber(gamePlayer, randomSeat);
-                }
-                if (!seated) {
+                if (!gameRoom.addPlayer(gamePlayer, randomSeat)) {
                     return null;
                 }
 
@@ -497,6 +502,12 @@ public class GameContainer {
     // ==================== 内部 ====================
 
     /**
+     * 落库线程。单线程是为了保证同一个用户的写入【有序】——
+     * 用多线程的话，「退出设 1」和「入座设 4」可能写反，DB 里留下错的状态。
+     */
+    private static final ExecutorService ONLINE_STATE_WRITER = ThreadPoolFactory.createSingleThread("online-state-writer");
+
+    /**
      * 回写用户的 {@code onlineState}。
      *
      * <p><b>本方法永不抛异常，这是刻意的。</b></p>
@@ -518,17 +529,19 @@ public class GameContainer {
         if (user == null || !user.isOnline() || user.getEntity() == null) {
             return;
         }
-        try {
-            user.getEntity().setOnlineState(onlineState);
-            // 旧工程写的是 userMapper.update(entity)，该单参重载在 MyBatis-Plus 3.5.7+ 已被移除，
-            // 对应的替代就是 updateById（同样是「按主键更新、跳过 null 字段」）
-            userMapper.updateById(user.getEntity());
-        } catch (Exception e) {
-            // user.getId() 在日志里是安全的：ServerUser#getId 内部是
-            // `entity == null ? 0 : entity.getId()`，不会 NPE
-            log.error("回写 onlineState 失败: player={}, onlineState={}, error={}",
-                    user.getId(), onlineState, e.getMessage(), e);
-        }
+        // ① 内存立刻更新：进程内读 onlineState 的地方（水果拉霸、挑战赛定时任务）看到的还是新值，不受落库影响
+        user.getEntity().setOnlineState(onlineState);
+        // ② 落库挪到锁外异步做。onlineState 是派生数据——事实来源是
+        //    playerIdMap / roomCodeMap 那两张内存表，它丢了下次入座会重写。
+        //    而它现在是在 PLAYER_LOCK 里同步写的：删一个 100 人房要做 100 次 DB 写，
+        //    全程持 ROOM_LOCK + PLAYER_LOCK，服务器会整个卡住几秒
+        ONLINE_STATE_WRITER.submit(() -> {
+            try {
+                userMapper.updateById(user.getEntity());
+            } catch (Exception e) {
+                log.error("回写 onlineState 失败: player={}, onlineState={}, error={}", user.getId(), onlineState, e.getMessage(), e);
+            }
+        });
     }
 
 }
