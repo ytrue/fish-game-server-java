@@ -218,13 +218,21 @@ public class GameContainer {
     public static boolean removeGameRoom(BaseGameRoom gameRoom) {
         try {
             synchronized (ROOM_LOCK) {
-                // 先摘表：别人立刻拿不到这个房间了，也就不会对它做任何操作
+                // ① 先给房间打上「已解散」标记。
+                //    光把它从房间表摘掉是不够的：addPlayer 用的是传进来的 gameRoom 对象引用，
+                //    根本不查 roomCodeMap，摘了表照样能往里面加人（实测过）。
+                //    打了标记之后 addPlayer 一律拒绝，下面那个清人循环才能真清干净
+                gameRoom.dismiss();
+
+                // ② 摘表：别人按房间号就查不到它了
                 roomCodeMap.remove(gameRoom.getCode());
-                // 在慢慢的踢人
+
+                // ③ 再慢慢踢人。
+                //    清人是按下标正序遍历的，如果遍历途中有人往更靠前的空槽位加人，
+                //    那个槽位已经扫过、索引不会回头——新玩家会留下来，而房间已经查不到了，
+                //    成为「玩家表里有、按 id 却查不到房间」的孤儿。① 就是堵这个的
                 for (int i = 0; i < gameRoom.getMaxSize(); i++) {
-                    // 获取玩家
                     if (gameRoom.getGamePlayerBySeat(i) != null) {
-                        // 删除玩家
                         removeGamePlayerBySeat(gameRoom, i);
                     }
                 }

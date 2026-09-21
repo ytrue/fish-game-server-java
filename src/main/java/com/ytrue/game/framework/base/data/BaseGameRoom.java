@@ -59,6 +59,39 @@ public abstract class BaseGameRoom {
     private BaseGamePlayer[] gamePlayers;
 
     /**
+     * 房间是否已解散。
+     *
+     * <p>由 {@code GameContainer.removeGameRoom} 在拆房前通过 {@link #dismiss()} 置位。
+     * 一旦置位，这个房间就<b>拒绝一切新的入座</b>——它已经从房间表里摘掉了，
+     * 这时候进来的人会变成「玩家表里有他、按 id 却查不到房间」的孤儿：
+     * {@code getPlayerById} 查得到，{@code getGameRoomByPlayerId} 却返回 {@code null}，
+     * 而且没有任何机制会清理他。</p>
+     *
+     * <p>为什么要这个标志：{@code removeGameRoom} 是「先清人、再摘表」地拆房的，
+     * 清人靠的是 <b>按下标正序遍历</b>。如果遍历途中有人往更靠前的空槽位加人，
+     * 那个槽位已经扫过了，索引不会回头——新玩家就留了下来。这不是概率问题，
+     * 是必然：只要加人落在窗口里就一定漏。</p>
+     *
+     * <p>用 {@code volatile}：写方在 {@code GameContainer} 的 {@code ROOM_LOCK} 里，
+     * 读方（入座）只持 {@code PLAYER_LOCK}，两边不是同一把锁，靠它保证可见性。</p>
+     */
+    @Getter
+    private volatile boolean dismissed;
+
+    /**
+     * 把房间标记为「已解散」。
+     *
+     * <p>由 {@code GameContainer.removeGameRoom} 在拆房前调用。置位之后
+     * {@link #addPlayerWithFreeSeatNumber} / {@link #addPlayerWithSeatIndex} 一律拒绝新玩家。</p>
+     *
+     * <p>本方法只负责置位，真正的清人由调用方做——两件事分开是因为清人要拿
+     * {@code PLAYER_LOCK}，而拆房拿的是 {@code ROOM_LOCK}，分开可以避免嵌套锁。</p>
+     */
+    public void dismiss() {
+        this.dismissed = true;
+    }
+
+    /**
      * 入座 —— 这是房间对外的<b>唯一入座入口</b>，默认走策略一。
      *
      * <p>{@code GameContainer.createGamePlayer} 只调本方法，不关心玩法怎么排座位。
@@ -113,6 +146,14 @@ public abstract class BaseGameRoom {
      * @see #addPlayerWithSeatIndex(BaseGamePlayer, boolean)
      */
     public boolean addPlayerWithFreeSeatNumber(BaseGamePlayer gamePlayer, boolean randomSeat) {
+        // 房间已经被拆掉就别再往里加人了：removeGameRoom 已经把它从房间表摘掉，
+        // 这时候进来的人会留在数组和玩家表里、而按 id 查不到房间，成为无人清理的孤儿。
+        // 注意这只是「尽早拒绝」——真正兜底的是下面两处写入前的复查
+        if (dismissed) {
+            log.warn("玩家入座失败: room={}, player={}, strategy=FREE_SEAT_NUMBER, random={}, reason=房间已解散", code, logIdOf(gamePlayer), randomSeat);
+            return false;
+        }
+
         // 空槽位下标。-1 表示「还没找到」。
         // 靠它保证只记下「第一个」空位，而不是最后碰到的那个
         int slot = -1;
@@ -250,6 +291,12 @@ public abstract class BaseGameRoom {
      * @see #addPlayerWithFreeSeatNumber(BaseGamePlayer, boolean)
      */
     public boolean addPlayerWithSeatIndex(BaseGamePlayer gamePlayer, boolean randomSeat) {
+        // 同策略一：房间已解散就别再往里加人
+        if (dismissed) {
+            log.warn("玩家入座失败: room={}, player={}, strategy=SEAT_INDEX, random={}, reason=房间已解散", code, logIdOf(gamePlayer), randomSeat);
+            return false;
+        }
+
         if (!randomSeat) {
             // ========== 不随机：从下标 0 起扫，第一个空槽位就是它 ==========
             //
